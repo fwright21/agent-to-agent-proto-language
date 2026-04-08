@@ -1,0 +1,10 @@
+
+# Local handoff notes (do not commit)
+*handoff*.md
+*_handoff_*.md
+*handoff_and_git_prep.md
+
+# Local environment files
+.DS_Store
+.venv/
+__pycache__/

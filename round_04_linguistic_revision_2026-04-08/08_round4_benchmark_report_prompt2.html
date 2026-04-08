@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Round 4 Benchmark Report — Prompt 2</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --ok: #0f766e;
+      --warn: #92400e;
+      --line: #e2e8f0;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 1050px; margin: 28px auto; padding: 0 18px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    h1, h2 { margin: 0 0 10px 0; }
+    p { margin: 8px 0; color: var(--muted); }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #f8fafc; }
+    .kpi .value { font-size: 22px; font-weight: 700; color: var(--ok); }
+    .kpi .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px 6px; }
+    th { background: #f8fafc; }
+    code { background: #eef2ff; padding: 2px 6px; border-radius: 6px; }
+    .good { color: var(--ok); font-weight: 700; }
+    .note { color: var(--warn); }
+    @media (max-width: 900px) {
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>Round 4 — Prompt 2 Benchmark Report</h1>
+      <p>Generated: 2026-04-08 • Runner: <code>local</code> • Repeats: <code>3</code> • Baseline: <code>plain_english</code></p>
+      <p>Conditions: <code>plain_english</code>, <code>RCCE-1</code>, <code>ATRCE-2</code></p>
+    </section>
+
+    <section class="card">
+      <h2>Headline Results</h2>
+      <div class="kpis">
+        <div class="kpi">
+          <div class="value">362</div>
+          <div class="label">ATRCE-2 total internal tokens</div>
+        </div>
+        <div class="kpi">
+          <div class="value">34.9%</div>
+          <div class="label">ATRCE-2 reduction vs plain</div>
+        </div>
+        <div class="kpi">
+          <div class="value">0.0</div>
+          <div class="label">ATRCE-2 avg repair turns</div>
+        </div>
+        <div class="kpi">
+          <div class="value">100%</div>
+          <div class="label">ATRCE-2 compliance</div>
+        </div>
+      </div>
+      <p class="note">Compared with <code>RCCE-1</code>, <code>ATRCE-2</code> is lower-token (<code>384 -&gt; 362</code>) and lower-repair (<code>0.4 -&gt; 0.0</code>) at equal final quality (<code>2.3</code>).</p>
+    </section>
+
+    <section class="card">
+      <h2>Total / Average Table</h2>
+      <table>
+        <tr>
+          <th>Condition</th>
+          <th>Total Internal Tokens</th>
+          <th>Compliance</th>
+          <th>Avg Repair Turns</th>
+          <th>Avg Final Quality</th>
+        </tr>
+        <tr>
+          <td><code>plain_english</code></td>
+          <td>556</td>
+          <td>100%</td>
+          <td>0.1</td>
+          <td>2.4</td>
+        </tr>
+        <tr>
+          <td><code>RCCE-1</code></td>
+          <td>384</td>
+          <td>100%</td>
+          <td>0.4</td>
+          <td>2.3</td>
+        </tr>
+        <tr>
+          <td><code>ATRCE-2</code></td>
+          <td class="good">362</td>
+          <td>100%</td>
+          <td class="good">0.0</td>
+          <td>2.3</td>
+        </tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Per-Case Internal Tokens</h2>
+      <table>
+        <tr>
+          <th>Case</th>
+          <th>Plain</th>
+          <th>RCCE-1</th>
+          <th>ATRCE-2</th>
+        </tr>
+        <tr><td><code>protocol_rule_proposal</code></td><td>92</td><td>59</td><td class="good">56</td></tr>
+        <tr><td><code>missing_evidence_repair</code></td><td>72</td><td>46</td><td>46</td></tr>
+        <tr><td><code>fallback_trigger</code></td><td>71</td><td>52</td><td>52</td></tr>
+        <tr><td><code>benchmark_scope_decision</code></td><td>82</td><td>56</td><td class="good">47</td></tr>
+        <tr><td><code>reference_clarity</code></td><td>79</td><td>55</td><td class="good">50</td></tr>
+        <tr><td><code>scope_expansion</code></td><td>90</td><td>54</td><td class="good">51</td></tr>
+        <tr><td><code>human_interrupt_during_execution</code></td><td>70</td><td>62</td><td class="good">60</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Prompt 2 Verdict</h2>
+      <p><code>ATRCE-2</code> is the best performer in this local round: stronger compression than <code>RCCE-1</code>, no repair turns, and unchanged final quality.</p>
+      <p>Token savings for <code>ATRCE-2</code>: <strong>194</strong> tokens per <strong>7-case suite</strong> vs plain English (<strong>$0.002910</strong> at $15/MTok output guideline).</p>
+      <p>Source results file: <code>07_round4_debate_test_results_prompt2.md</code></p>
+    </section>
+  </div>
+</body>
+</html>
