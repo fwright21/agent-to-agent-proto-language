@@ -73,9 +73,21 @@ Current protocol names:
 - `RCCE-1` = `Relevance-Core Coordination English`
 - `ATRCE-2` = `Act-Typed Relevance Coordination English`
 
-Name rationale:
-- `Relevance-Core` reflects a Sperber & Wilson style objective: keep only content that justifies its token cost in recoverability terms.
-- `Act-Typed` reflects explicit speech-act disambiguation in the schema (for example, separating interrupt directives from information requests).
+Methodology:
+- Protocol design is grounded in relevance-theoretic compression: preserve information needed for recoverability, remove low-value overhead.
+- Protocol revisions are grounded in speech-act clarity: separate communicative acts so agents do not infer intent from ambiguous message forms.
+
+## Debate system
+
+This project uses a linguist-panel debate loop to generate and refine protocol candidates.
+
+Process:
+- a panel proposes competing protocol changes using linguistic arguments
+- cross-critique identifies ambiguity, inferential load, and recoverability risks
+- a synthesis pass produces a candidate protocol revision
+- benchmark runs adjudicate the candidate against baselines
+
+The benchmark is the decision layer; debate is the ideation layer.
 
 Example:
 
