@@ -1,29 +1,42 @@
-# Agent-to-Agent Protocol Compression
+# 🧠 Agent-to-Agent Protocol Compression
+## A protocol benchmark for cheaper multi-agent coordination
 
-why use many token when few token do trick — but for agent-to-agent coordination, not human prose
+I explored how to reduce token cost and improve reliability in multi-agent systems by structuring internal communication.
 
-This repo explores whether multi-agent systems can coordinate with **much less INTERNAL text** while keeping FINAL output readable.
+Core question:
+Can we make AI agents coordinate more efficiently — without breaking coordination?
+
+The goal is **not** to shorten answers for humans.
+We focus on reducing **INTERNAL** agent-to-agent communication while keeping the final output readable.
 
 Every benchmark run forces this shape:
 
 ```text
 INTERNAL:
-agent coordination transcript, measured and compressed
+(agent coordination transcript — measured + compressed)
 FINAL:
-human-facing recommendation, kept readable
+(human-facing recommendation — kept readable)
 ```
 
-## The story
+## 💡 The problem (in plain English)
 
-Multi-agent workflows waste tokens on coordination overhead:
+When multiple AI agents work together, they often spend tokens on overhead:
 
 - repeating context
-- hedging and politeness
-- implicit disagreement that triggers repair turns
+- hedging and politeness (“maybe”, “I think”, etc.)
+- back-and-forth repairs to resolve ambiguity
 
-We want the same coordination functions — claim, objection, evidence, revision, next action — with fewer tokens.
+So the question is:
+Can we give agents a structured way to communicate that is shorter, but still reliable?
 
-So we treat coordination like an API: small vocabulary, explicit moves, benchmarked behavior.
+That structure is what we call a **protocol**.
+
+This is a promising direction, backed by benchmark runs, not a one-size-fits-all standard.
+
+## 🧩 What’s a “protocol”?
+
+A protocol is just a set of rules for how agents talk to each other.
+Instead of full sentences, agents use predefined actions + compact formats.
 
 ## Before / after
 
@@ -57,7 +70,28 @@ NXT AgentD decision=revise
 
 Same moves. Less overhead.
 
-## What we built
+## 👩‍💻 What do linguists do here?
+
+The “linguists” are not just reviewers — they’re a design panel for communication itself.
+They argue about what can be safely removed and what must stay explicit for coordination to work.
+
+They operate as different personas, each protecting something important:
+clarity, structure, efficiency, meaning, recoverability.
+
+Full persona descriptions: `01_linguist_agents.md`.
+
+## 🔁 How protocols are created
+
+Each protocol goes through the same cycle:
+
+1) Debate (linguist panel) → proposals + critique  
+2) Specification → concrete syntax + rules  
+3) Benchmarking → same tasks, measured outcomes  
+
+We track:
+token usage, formatting correctness (compliance), repair turns, and a simple final-quality proxy.
+
+## 🧪 What we built
 
 We built a protocol design + evaluation loop:
 
@@ -65,23 +99,7 @@ We built a protocol design + evaluation loop:
 2) Spec: the winning idea becomes a concrete syntax and act inventory  
 3) Benchmark: run the same case suite under each protocol and measure tokens, compliance, repairs, and a simple quality proxy  
 
-## Linguist panel
-
-The “linguists” are personas that protect different coordination properties:
-
-- Chomsky: explicit structure, don’t hide dependencies
-- Greenberg: irreducible coordination categories
-- Sperber & Wilson: omit what is cheaply recoverable, avoid expensive inference
-- Piantadosi: information per token, delete low-info overhead
-- Bickerton: proto-grammar, stable roles, fragments ok
-- Lakoff: strip framing and rhetoric
-- Halliday: drop interpersonal stance, keep minimal cohesion
-- Prince & Smolensky: explicit constraint ranking, recoverability > compression
-- Jackendoff: preserve semantic mapping and reference clarity
-
-Full persona descriptions: `01_linguist_agents.md`.
-
-## Protocols tested
+## 🧪 What we tested
 
 Baseline:
 - `plain_english` readable internal chat, no protocol
@@ -96,20 +114,13 @@ Proto-language:
 Semantically dense code:
 - `SDC-1` operator-prefixed code, `+c1 ...`, `-c1 ...`
 
-## What happened in each round
+## 🔁 Timeline (very short)
 
-High-level, no theory required:
+- R1–R3: define the benchmark scaffolding (moves, templates, failure modes).
+- R4: test typed schemas (`RCCE-1`, `ATRCE-2`).
+- R5: test compression frontier (`PCL-1`, `SDC-1`).
 
-- Round 1: define the goal (compress INTERNAL, keep FINAL readable) and sketch basic coordination moves.
-  - Artifacts: `05_round_one_debate.md`, `02_message_types.md`
-- Round 2: tighten message types and shared evaluation questions so protocols can be benchmarked instead of argued about.
-  - Artifacts: `08_round_two_debate.md`, `02_shared_questions.md`
-- Round 3: explore agent-role structure and synthesis patterns for protocol proposals.
-  - Artifacts: `13_round_three_agents.md`, `14_round_three_debate.md`, `03_synthesis_template.md`
-- Round 4: test “typed schema” coordination (RCCE-1 → ATRCE-2), learn that labels can cost more than they save, and that explicit `INTERRUPT` is a practical win.
-  - Artifacts: `round_04_linguistic_revision_2026-04-08/`, `combined_round4_round5_dashboard.html`
-- Round 5: test a proto-language (PCL-1) and a token-minimizing dense code (SDC-1), then measure the tradeoff frontier.
-  - Artifacts: `round_05_proto_language_and_dense_code_2026-04-08/`, `round_05_proto_language_and_dense_code_2026-04-08/12_round5_codex_benchmark_report_r2_strict_repeats3.html`
+Details + artifacts live in `WORKFLOW.md`.
 
 ## Results snapshot
 
@@ -125,7 +136,12 @@ Round 4 Prompt 2, local, `openai_exact`:
 - `RCCE-1`: 600 total INTERNAL tokens, worse than baseline
 - `ATRCE-2`: 597 total INTERNAL tokens, worse than baseline
 
-## Conclusions
+## 📊 Measurable impact (one strict run)
+
+From Round 5 strict (Codex, repeats=3, `openai_exact`):
+- `PCL-1`: ~45% fewer INTERNAL tokens vs `plain_english` (524.3 vs 946.3), with 98.8% compliance
+
+## 👉 Takeaway
 
 - If you care about cost + still-working coordination: `PCL-1` is the current winner in this repo’s strict run.
 - If you only care about the smallest token count: `SDC-1` wins tokens, but it is not the best single “default” protocol here (quality dropped in the suite).
