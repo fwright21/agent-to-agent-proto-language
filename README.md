@@ -1,5 +1,5 @@
 # 🧠 Agent-to-Agent Protocol Compression
-## A protocol benchmark for cheaper multi-agent coordination
+## A benchmark for cheaper, more reliable multi-agent coordination
 
 I explored how to reduce token cost and improve reliability in multi-agent systems by structuring internal communication.
 
@@ -29,14 +29,20 @@ When multiple AI agents work together, they often spend tokens on overhead:
 So the question is:
 Can we give agents a structured way to communicate that is shorter, but still reliable?
 
-That structure is what we call a **protocol**.
+That structure is a **structured coordination format**.
 
 This is a promising direction, backed by benchmark runs, not a one-size-fits-all standard.
 
-## 🧩 What’s a “protocol”?
+## 🧩 Think “format”, not “new language”
 
-A protocol is just a set of rules for how agents talk to each other.
-Instead of full sentences, agents use predefined actions + compact formats.
+A protocol here is a **structured internal coordination format**: a small set of action types + predictable slots.
+
+If it helps, think “JSON for agent actions”:
+- structured and debuggable
+- compressible
+- expandable back into readable logs when needed
+
+This is not intended to replace human-readable logs. Compressed communication can always be expanded into a readable form for debugging and audit.
 
 ## Before / after
 
@@ -55,7 +61,7 @@ AgentC: Agree to revise; the original claim is unsupported.
 AgentD: Final decision should be revise, not keep.
 ```
 
-Proto-language coordination, PCL-1:
+Compressed coordination format (PCL-1):
 
 ```text
 CLM AgentA comp_all+30%
@@ -69,6 +75,15 @@ NXT AgentD decision=revise
 ```
 
 Same moves. Less overhead.
+Same moves, but you can always expand it back into a readable trace when debugging.
+
+Expanded (debug view):
+
+```text
+CLM AgentA comp_all+30%   -> Claim: “compression improves across tasks by ~30%”
+ASK AgentB evd? scope?    -> Ask: “what evidence and what scope?”
+REV AgentA comp_all+12%   -> Revise: “update claim to ~12%”
+```
 
 ## 👩‍💻 What do linguists do here?
 
@@ -102,13 +117,13 @@ We built a protocol design + evaluation loop:
 ## 🧪 What we tested
 
 Baseline:
-- `plain_english` readable internal chat, no protocol
+- `plain_english` readable internal chat, no format constraints
 
 Typed schemas:
 - `RCCE-1` `TYPE: field=value; ...`
 - `ATRCE-2` RCCE-1 + explicit `INTERRUPT` act + stricter rules
 
-Proto-language:
+Compact coordination format:
 - `PCL-1` act codes + positional args, `ACT ARG ARG ...`
 
 Semantically dense code:
@@ -122,24 +137,16 @@ Semantically dense code:
 
 Details + artifacts live in `WORKFLOW.md`.
 
-## Results snapshot
+## 📊 Key results (tokenizer-native)
 
-Pulled from saved `openai_exact` reports in this repo.
+Pulled from saved `openai_exact` reports (tokenizer-native via `tiktoken`), not estimates.
 
-Round 5 strict, Codex, repeats=3, `openai_exact`:
-- `plain_english`: 946.3 avg INTERNAL tokens
-- `PCL-1`: 524.3 avg INTERNAL tokens, 44.6% lower vs baseline, compliance 98.8%
-- `SDC-1`: 406.7 avg INTERNAL tokens, 57.0% lower vs baseline, but quality dropped in strict runs
+Round 5 strict, Codex, repeats=3:
+- `PCL-1`: 524.3 avg INTERNAL tokens (44.6% lower vs baseline), 98.8% compliance
+- `SDC-1`: 406.7 avg INTERNAL tokens (57.0% lower), but quality dropped in the suite
 
-Round 4 Prompt 2, local, `openai_exact`:
-- `plain_english`: 530 total INTERNAL tokens
-- `RCCE-1`: 600 total INTERNAL tokens, worse than baseline
-- `ATRCE-2`: 597 total INTERNAL tokens, worse than baseline
-
-## 📊 Measurable impact (one strict run)
-
-From Round 5 strict (Codex, repeats=3, `openai_exact`):
-- `PCL-1`: ~45% fewer INTERNAL tokens vs `plain_english` (524.3 vs 946.3), with 98.8% compliance
+Round 4 typed schemas, Prompt 2 (local, `openai_exact`):
+- `RCCE-1` / `ATRCE-2` were worse than baseline on tokens in that run (label overhead is real)
 
 ## 👉 Takeaway
 
