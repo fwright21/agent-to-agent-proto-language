@@ -1,7 +1,8 @@
-# Agent-to-Agent Compressed Communication: Protocol Benchmark
+# Agent-to-Agent Protocol Compression
 
-This repo is a small research/engineering project about **making multi-agent coordination cheaper**.
-The target is not “shorter answers to humans”. The target is **shorter INTERNAL agent-to-agent conversation** while keeping coordination reliable: claims, objections, evidence, revisions, and next actions. The human-facing output stays readable.
+why use many token when few token do trick — but for agent-to-agent coordination, not human prose
+
+This repo explores whether multi-agent systems can coordinate with **much less INTERNAL text** while keeping FINAL output readable.
 
 Every benchmark run forces this shape:
 
@@ -12,88 +13,23 @@ FINAL:
 human-facing recommendation, kept readable
 ```
 
-## Why this exists
+## The story
 
-Multi-agent workflows often spend a large share of tokens on coordination overhead: repeating context, hedging, politeness, and implicit/ambiguous disagreements that trigger repair turns.
-This project tests whether a **coordination protocol**, a constrained language for internal moves, can cut INTERNAL tokens without collapsing reliability.
+Multi-agent workflows waste tokens on coordination overhead:
 
-## Methodology: linguistics → spec → benchmark
+- repeating context
+- hedging and politeness
+- implicit disagreement that triggers repair turns
 
-Protocol candidates are generated with a “linguist panel” debate loop, then adjudicated by benchmarks:
+We want the same coordination functions — claim, objection, evidence, revision, next action — with fewer tokens.
 
-1) Debate: personas argue about recoverability, inferential load, and speech acts, for example “interrupt” vs “ask”.  
-2) Spec: the winning idea becomes a concrete protocol with syntax and allowed acts.  
-3) Benchmark: run the same task suite under each protocol and measure:
-   - INTERNAL token cost
-   - compliance, format adherence
-   - repair turns, ASK/ESC patterns
-   - final quality, simple proxy
+So we treat coordination like an API: small vocabulary, explicit moves, benchmarked behavior.
 
-## Protocols tested: including “unsuccessful” directions
+## Before / after
 
-Baseline:
-- `plain_english`: readable internal chat, no protocol.
+Round 5 strict `missing_evidence_repair` INTERNAL sample.
 
-Typed schemas: readable and easy to validate, but label overhead can be expensive
-- `RCCE-1`: Relevance-Core Coordination English. Example: `TYPE: field=value; ...`
-- `ATRCE-2`: RCCE-1 + explicit `INTERRUPT` act + stricter usage rules
-
-Proto-language: best current savings/tradeoff candidate
-- `PCL-1`: act codes + positional args. Example: `ACT ARG ARG ...`
-
-Semantically dense code: token-minimizer, quality risk
-- `SDC-1`: operator-prefixed code. Example: `+c1 ...`, `-c1 ...`
-
-## Linguist panel: personas and what they protect
-
-The “linguists” are used as *personas* that defend different coordination properties. In practice, they push the protocol design toward a stable set of tradeoffs:
-
-- Structural minimalism, Chomsky: preserve explicit structure so targets, dependencies, and revisions stay legible.
-- Universals, Greenberg: keep a tiny “irreducible” inventory of coordination functions that cannot disappear.
-- Inferential pragmatics, Sperber & Wilson: omit what shared context makes cheaply recoverable, but avoid pushing inference cost so high that repair explodes.
-- Information density, Piantadosi: delete low-information overhead first; retain tokens that prevent expensive ambiguity.
-- Protolanguage, Bickerton: argue for stable proto-grammar and fragments as long as roles remain clear.
-- Framing, Lakoff: strip rhetorical packaging that helps humans but not machine coordination.
-- Functional roles, Halliday: zero out interpersonal language; keep minimal cohesion where it supports multi-turn coordination.
-- Constraint ranking, Prince & Smolensky: force explicit priority ordering, usually recoverability > compression > stylistic naturalness.
-- Parallel architecture, Jackendoff: preserve semantic mapping and reference clarity, not just surface form.
-
-Full persona descriptions live in `01_linguist_agents.md`.
-
-## What happened in each round
-
-Round 4: typed schema track
-- Goal: make coordination moves explicit and validator-friendly.
-- Key finding: typed fields can be **more expensive than plain English** for short messages; label overhead is real.
-- Key improvement: introducing explicit **speech acts**, especially interrupts, reduces ambiguity-driven repair.
-
-Round 5: compression frontier
-- Proto-language track, PCL-1: remove repeated field labels while keeping act structure.
-- Dense code track, SDC-1: push compression further; observed quality drop in strict runs.
-
-## Results: strict tokenizer-native runs
-
-These are pulled from saved `openai_exact` reports in this repo.
-
-Round 4 Prompt 2, local, `openai_exact`:
-- `plain_english`: 530 total INTERNAL tokens
-- `RCCE-1`: 600 total INTERNAL tokens, worse than baseline
-- `ATRCE-2`: 597 total INTERNAL tokens, worse than baseline
-
-Round 5 strict, Codex, repeats=3, `openai_exact`:
-- `plain_english`: 946.3 avg INTERNAL tokens
-- `PCL-1`: 524.3 avg INTERNAL tokens, 44.6% lower vs baseline, compliance 98.8%
-- `SDC-1`: 406.7 avg INTERNAL tokens, 57.0% lower vs baseline, quality drop risk
-
-For the exact runs + tables, open:
-- `dashboard_trusted.html` only openai_exact runs
-- `combined_round4_round5_dashboard.html` Round 4 vs Round 5 side-by-side
-
-## Before and after: one benchmark case
-
-Round 5 strict `missing_evidence_repair` INTERNAL samples:
-
-Plain English:
+Normal coordination:
 
 ```text
 AgentA: I claim this compression scheme reduces message sizes by 80% across all tasks.
@@ -106,7 +42,7 @@ AgentC: Agree to revise; the original claim is unsupported.
 AgentD: Final decision should be revise, not keep.
 ```
 
-PCL-1:
+Proto-language coordination, PCL-1:
 
 ```text
 CLM AgentA comp_all+30%
@@ -119,24 +55,98 @@ CNF AgentC conf=med
 NXT AgentD decision=revise
 ```
 
-## Models and runners tested
+Same moves. Less overhead.
 
-The harness supports:
-- `--runner local`: deterministic stored samples, no network, sanity check
-- `--runner codex`: live run via `codex exec`
-- `--runner claude`: live run via `claude -p`
+## What we built
 
-Exact token counting:
-- `--count-mode openai_exact` uses `tiktoken` when installed. See `requirements.txt`. Requires Python >= 3.8.
-- If `tiktoken` is unavailable, the harness falls back to an explicit heuristic estimate. Useful for relative comparisons, not billable tokens.
+We built a protocol design + evaluation loop:
 
-Model selection:
-- `--codex-model` sets `codex exec -m ...`
-- `--claude-model` sets `claude --model ...`
+1) Debate: a “linguist panel” proposes and critiques protocol rules  
+2) Spec: the winning idea becomes a concrete syntax and act inventory  
+3) Benchmark: run the same case suite under each protocol and measure tokens, compliance, repairs, and a simple quality proxy  
 
-## How to run
+## Linguist panel
 
-Sanity check, no model calls, uses stored local outputs:
+The “linguists” are personas that protect different coordination properties:
+
+- Chomsky: explicit structure, don’t hide dependencies
+- Greenberg: irreducible coordination categories
+- Sperber & Wilson: omit what is cheaply recoverable, avoid expensive inference
+- Piantadosi: information per token, delete low-info overhead
+- Bickerton: proto-grammar, stable roles, fragments ok
+- Lakoff: strip framing and rhetoric
+- Halliday: drop interpersonal stance, keep minimal cohesion
+- Prince & Smolensky: explicit constraint ranking, recoverability > compression
+- Jackendoff: preserve semantic mapping and reference clarity
+
+Full persona descriptions: `01_linguist_agents.md`.
+
+## Protocols tested
+
+Baseline:
+- `plain_english` readable internal chat, no protocol
+
+Typed schemas:
+- `RCCE-1` `TYPE: field=value; ...`
+- `ATRCE-2` RCCE-1 + explicit `INTERRUPT` act + stricter rules
+
+Proto-language:
+- `PCL-1` act codes + positional args, `ACT ARG ARG ...`
+
+Semantically dense code:
+- `SDC-1` operator-prefixed code, `+c1 ...`, `-c1 ...`
+
+## What happened in each round
+
+High-level, no theory required:
+
+- Round 1: define the goal (compress INTERNAL, keep FINAL readable) and sketch basic coordination moves.
+  - Artifacts: `05_round_one_debate.md`, `02_message_types.md`
+- Round 2: tighten message types and shared evaluation questions so protocols can be benchmarked instead of argued about.
+  - Artifacts: `08_round_two_debate.md`, `02_shared_questions.md`
+- Round 3: explore agent-role structure and synthesis patterns for protocol proposals.
+  - Artifacts: `13_round_three_agents.md`, `14_round_three_debate.md`, `03_synthesis_template.md`
+- Round 4: test “typed schema” coordination (RCCE-1 → ATRCE-2), learn that labels can cost more than they save, and that explicit `INTERRUPT` is a practical win.
+  - Artifacts: `round_04_linguistic_revision_2026-04-08/`, `combined_round4_round5_dashboard.html`
+- Round 5: test a proto-language (PCL-1) and a token-minimizing dense code (SDC-1), then measure the tradeoff frontier.
+  - Artifacts: `round_05_proto_language_and_dense_code_2026-04-08/`, `round_05_proto_language_and_dense_code_2026-04-08/12_round5_codex_benchmark_report_r2_strict_repeats3.html`
+
+## Results snapshot
+
+Pulled from saved `openai_exact` reports in this repo.
+
+Round 5 strict, Codex, repeats=3, `openai_exact`:
+- `plain_english`: 946.3 avg INTERNAL tokens
+- `PCL-1`: 524.3 avg INTERNAL tokens, 44.6% lower vs baseline, compliance 98.8%
+- `SDC-1`: 406.7 avg INTERNAL tokens, 57.0% lower vs baseline, but quality dropped in strict runs
+
+Round 4 Prompt 2, local, `openai_exact`:
+- `plain_english`: 530 total INTERNAL tokens
+- `RCCE-1`: 600 total INTERNAL tokens, worse than baseline
+- `ATRCE-2`: 597 total INTERNAL tokens, worse than baseline
+
+## Conclusions
+
+- If you care about cost + still-working coordination: `PCL-1` is the current winner in this repo’s strict run.
+- If you only care about the smallest token count: `SDC-1` wins tokens, but it is not the best single “default” protocol here (quality dropped in the suite).
+
+## Reports and dashboards
+
+GitHub shows `.html` files as source in the repo view. For publishable visuals, use GitHub Pages via `docs/`:
+
+```bash
+bash scripts/build_docs_site.sh
+```
+
+Then GitHub: Settings → Pages → deploy from `main` → `/docs`.
+
+- Landing page: `docs/index.html`
+- Trusted dashboard: `docs/dashboard_trusted.html`
+- Round 5 strict report: `docs/round5_strict_r2.html`
+
+## Run it yourself
+
+Sanity check, no model calls:
 
 ```bash
 python run_tests.py --runner local --output test_results.md
@@ -148,21 +158,10 @@ Live run, Codex:
 python run_tests.py --runner codex --repeats 3 --count-mode auto --output test_results.md
 ```
 
-Render an HTML report from a markdown report:
-
-```bash
-python render_benchmark_html.py test_results.md benchmark_report.html
-```
-
-Regenerate the repo’s main dashboards:
-
-```bash
-bash scripts/regenerate_dashboards.sh
-```
-
-This repo checks in a small set of “shareable” HTML outputs: trusted + combined. Larger/historical dashboards are regenerated locally.
+Exact token counting:
+- `--count-mode openai_exact` uses `tiktoken` via `requirements.txt`, Python >= 3.8
 
 ## Full writeup
 
-For the detailed “GitHub-level” walkthrough, debates, linguists, protocol specs, exact reproduction, and discussion, see:
+For the detailed walkthrough, debates, protocol specs, reproduction, and discussion:
 - `WORKFLOW.md`

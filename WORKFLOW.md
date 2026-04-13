@@ -1,5 +1,5 @@
 # Coordination Protocol Compression
-# A Dissertation-Style, Presentation-Ready Workflow Report (with Debate Rounds)
+## A dissertation-style workflow report with debate rounds
 
 This is the primary “how this repo works” document for GitHub readers.
 
@@ -8,7 +8,9 @@ Project focus: **compressing agent-to-agent coordination** (INTERNAL), while kee
 
 ---
 
-## Abstract (read this like the first slide)
+## Abstract
+
+Read this like the first slide.
 
 This project asks one practical question:
 
@@ -37,7 +39,7 @@ This report is self-contained. You do not need to open other files to understand
 
 ---
 
-## Table of contents (the exact structure requested)
+## Table of contents
 
 1. Problem  
 2. How we tackle it: debate system (with linguists) + benchmark system  
@@ -269,6 +271,17 @@ AgentD: Let’s revise and decide.
 ```
 
 This is reliable, but it drifts into verbosity and is hard to validate.
+
+### 3.0B Rounds 1–3: framing and scaffolding (no benchmarked protocols yet)
+
+Rounds 1–3 produced the scaffolding that made Round 4+ benchmarkable: message types, synthesis formats, and a shared notion of “what counts as coordination”.
+
+- Round 1: define INTERNAL vs FINAL and the basic move inventory.
+  - `05_round_one_debate.md`, `02_message_types.md`
+- Round 2: tighten the shared evaluation questions and failure modes.
+  - `08_round_two_debate.md`, `02_shared_questions.md`, `05_failure_modes.md`
+- Round 3: explore role structure and protocol synthesis patterns.
+  - `13_round_three_agents.md`, `14_round_three_debate.md`, `03_synthesis_template.md`
 
 ### 3.1 Round 4: RCCE-1 → ATRCE-2 (the “interrupt” problem)
 

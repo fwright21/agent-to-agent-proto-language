@@ -196,6 +196,16 @@ def _best_tokens(report: Report) -> TotalsRow:
 def render_dashboard(reports: List[Report], title: str) -> str:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # Cross-report summary: how often each condition wins.
+    best_tradeoff_counts: Dict[str, int] = {}
+    best_tokens_counts: Dict[str, int] = {}
+    for r in reports:
+        bt = _best_tradeoff(r)
+        if bt is not None:
+            best_tradeoff_counts[bt.condition] = best_tradeoff_counts.get(bt.condition, 0) + 1
+        bmin = _best_tokens(r)
+        best_tokens_counts[bmin.condition] = best_tokens_counts.get(bmin.condition, 0) + 1
+
     css = """
     :root{
       --bg:#0b1220; --panel:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --line:#22304a;
@@ -214,14 +224,21 @@ def render_dashboard(reports: List[Report], title: str) -> str:
 	    .search{display:flex;align-items:center;gap:8px}
 	    .search input{width:min(420px,70vw);padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(15,23,42,.78);color:var(--text);font-size:13px;outline:none}
 	    .search input::placeholder{color:rgba(148,163,184,.85)}
-	    .btn{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(15,23,42,.78);color:var(--text);font-size:13px;cursor:pointer}
-	    .btn:hover{border-color:rgba(96,165,250,.40)}
-	    .nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-	    .nav a{display:inline-block;padding:7px 9px;border:1px solid rgba(255,255,255,.10);border-radius:999px;background:rgba(15,23,42,.55);color:#cbd5e1;font-size:12px}
-	    .nav a:hover{border-color:rgba(96,165,250,.40);text-decoration:none}
-	    .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px;}
-	    .card{background:rgba(15,23,42,.82);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;}
-	    .card h2{margin:0 0 8px;font-size:16px;}
+    .btn{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(15,23,42,.78);color:var(--text);font-size:13px;cursor:pointer}
+    .btn:hover{border-color:rgba(96,165,250,.40)}
+    .nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .nav a{display:inline-block;padding:7px 9px;border:1px solid rgba(255,255,255,.10);border-radius:999px;background:rgba(15,23,42,.55);color:#cbd5e1;font-size:12px}
+    .nav a:hover{border-color:rgba(96,165,250,.40);text-decoration:none}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px;}
+    .summary{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px;}
+    .summary .box{background:rgba(15,23,42,.82);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;}
+    .summary h2{margin:0 0 6px;font-size:14px;}
+    .summary .muted{color:var(--muted);font-size:12px;line-height:1.45;}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+    .chip{display:inline-flex;gap:8px;align-items:baseline;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.02);font-size:12px;color:#cbd5e1;}
+    .chip b{font-variant-numeric:tabular-nums;}
+    .card{background:rgba(15,23,42,.82);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;}
+    .card h2{margin:0 0 8px;font-size:16px;}
     .meta{margin:0 0 10px;padding-left:18px;color:var(--muted);font-size:12px;}
     .meta .k{color:#cbd5e1;}
     code{font-family:var(--mono);font-size:12px;color:#e2e8f0;}
@@ -427,6 +444,38 @@ def render_dashboard(reports: List[Report], title: str) -> str:
         f"<a href=\"#{_slug(r.label)}\" title=\"Jump to {esc(r.label)}\">{esc(r.label)}</a>" for r in reports
     )
 
+    def chips_from_counts(counts: Dict[str, int]) -> str:
+        if not counts:
+            return "<div class=\"muted\">No eligible rows for this heuristic in these reports.</div>"
+        items = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        return "<div class=\"chips\">" + "".join(
+            f"<span class=\"chip\"><code>{esc(k)}</code> <b>{v}</b></span>" for k, v in items
+        ) + "</div>"
+
+    def winner_line(counts: Dict[str, int], label: str) -> str:
+        if not counts:
+            return f"<div class=\"muted\"><b>{esc(label)}:</b> n/a</div>"
+        winner, wins = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        total = sum(counts.values())
+        return f"<div class=\"muted\"><b>{esc(label)}:</b> <code>{esc(winner)}</code> ({wins}/{total} reports)</div>"
+
+    summary_html = (
+        "<div class=\"summary\">"
+        "<div class=\"box\">"
+        "<h2>Key Takeaways</h2>"
+        "<div class=\"muted\">Across the included reports, this is how often each condition wins the two simple heuristics used in the tables.</div>"
+        "<div style=\"height:10px\"></div>"
+        "<div class=\"muted\"><b>Best tradeoff</b>: compliance ≥ 90% and quality ≥ 2.0, then lowest tokens.</div>"
+        f"{winner_line(best_tradeoff_counts, 'Best tradeoff winner')}"
+        f"{chips_from_counts(best_tradeoff_counts)}"
+        "<div style=\"height:10px\"></div>"
+        "<div class=\"muted\"><b>Lowest tokens</b>: lowest total internal tokens, ignoring quality.</div>"
+        f"{winner_line(best_tokens_counts, 'Lowest tokens winner')}"
+        f"{chips_from_counts(best_tokens_counts)}"
+        "</div>"
+        "</div>"
+    )
+
     js = r"""
     <script>
       (function(){
@@ -472,16 +521,17 @@ def render_dashboard(reports: List[Report], title: str) -> str:
   <style>{css}</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <h1>{esc(title)}</h1>
-      <div class="sub">Generated {esc(now)} · Each panel is one benchmark report; within each panel, tokens and deltas are only comparable to that report’s own <code>plain_english</code> baseline.</div>
-    </div>
-    <div class="toolbar">
-      <div class="tools">
-        <div class="tools-left">
-          <div class="search">
-            <input id="q" type="search" placeholder="Filter reports by label…" autocomplete="off" />
+    <div class="wrap">
+      <div class="hero">
+        <h1>{esc(title)}</h1>
+        <div class="sub">Generated {esc(now)} · Each panel is one benchmark report; within each panel, tokens and deltas are only comparable to that report’s own <code>plain_english</code> baseline.</div>
+      </div>
+      {summary_html}
+      <div class="toolbar">
+        <div class="tools">
+          <div class="tools-left">
+            <div class="search">
+              <input id="q" type="search" placeholder="Filter reports by label…" autocomplete="off" />
             <button class="btn" id="clear-filter" type="button">Clear</button>
           </div>
         </div>
