@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Round 5 Codex strict (repeats=3)</title>
+    <title>Round 5 Codex strict r2 (repeats=3, openai_exact)</title>
     <style>
     :root {
       --bg: #f5f7fb;
@@ -99,6 +99,16 @@
     .span-6 { grid-column: span 6; }
 
     .muted { color: var(--muted); }
+
+    .callout {
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      padding: 18px 18px 16px;
+      background: linear-gradient(180deg, rgba(15,118,110,0.06), rgba(29,78,216,0.04));
+    }
+    .callout h3 { margin: 0 0 8px; font-size: 16px; }
+    .callout ul { margin: 10px 0 0; padding-left: 18px; }
+    .callout li { margin: 6px 0; }
 
     .bar-group { display: grid; gap: 14px; }
     .bar-row {
@@ -210,55 +220,60 @@
     <div class="wrap">
       <section class="hero">
         <div class="eyebrow">Agent Coordination Benchmark</div>
-        <h1>Round 5 Codex strict (repeats=3)</h1>
-        <p>
-          Lowest internal tokens in this run: <code>SDC-1</code> (406 tokens, 57.1% vs baseline).
-          Best tradeoff (compliance ≥ 90% and quality ≥ 2.0): <code>PCL-1</code>.
-        </p>
+        <h1>Round 5 Codex strict r2 (repeats=3, openai_exact)</h1>
+	        <p>
+	          Lowest internal tokens in this run: <code>SDC-1</code> (406.7 tokens, 57.0% vs baseline).
+	          Best tradeoff (compliance ≥ 90% and quality ≥ 2.0): <code>PCL-1</code>.
+	        </p>
         <div class="meta">Generated: <code>2026-04-12 21:11</code> | Runner: <code>`codex`</code> | Count: <code>`openai_exact`</code> | Codex model: <code>`gpt-5.2-codex`</code> | Repeats: <code>`3`</code> | Baseline: <code>`plain_english`</code></div>
         <div class="kpis">
-          <div class="kpi"><div class="value">406</div><div class="label">Lowest total internal tokens</div></div>
-          <div class="kpi"><div class="value">946</div><div class="label">Baseline total internal tokens</div></div>
-          <div class="kpi"><div class="value">57.1%</div><div class="label">Reduction vs baseline</div></div>
+          <div class="kpi"><div class="value">406.7</div><div class="label">Lowest total internal tokens</div></div>
+          <div class="kpi"><div class="value">946.3</div><div class="label">Baseline total internal tokens</div></div>
+          <div class="kpi"><div class="value">57.0%</div><div class="label">Reduction vs baseline</div></div>
           <div class="kpi"><div class="value">100%</div><div class="label">Compliance for lowest-token condition</div></div>
         </div>
       </section>
 
-      <div class="grid">
-        <section class="card span-12">
-          <h2>Totals by condition</h2>
-          <div class="bar-group">
-            
-            <div class="bar-row">
-              <div class="bar-label">plain_english</div>
-              <div class="bar-track"><div class="bar-fill base" style="width:71.4%"></div></div>
-              <div class="bar-value">946 (100%)</div>
-            </div>
-            
-            <div class="bar-row">
-              <div class="bar-label">ATRCE-2</div>
-              <div class="bar-track"><div class="bar-fill secondary" style="width:67.6%"></div></div>
-              <div class="bar-value">895 (95%)</div>
-            </div>
-            
-            <div class="bar-row">
-              <div class="bar-label">PCL-1</div>
-              <div class="bar-track"><div class="bar-fill secondary" style="width:39.6%"></div></div>
-              <div class="bar-value">524 (55%)</div>
-            </div>
-            
-            <div class="bar-row">
-              <div class="bar-label">RCCE-1</div>
-              <div class="bar-track"><div class="bar-fill secondary" style="width:67.1%"></div></div>
-              <div class="bar-value">889 (94%)</div>
-            </div>
-            
-            <div class="bar-row">
-              <div class="bar-label">SDC-1</div>
-              <div class="bar-track"><div class="bar-fill secondary" style="width:30.7%"></div></div>
-              <div class="bar-value">406 (43%)</div>
-            </div>
-            
+	      <div class="grid">
+	        <section class="card span-12">
+	          <h2>Conclusions</h2>
+	          <div class="callout"><p><b>Conclusion:</b> This run shows a clear tradeoff frontier. Token minimization and coordination quality do not move together.</p><p class="muted">What the strict openai_exact numbers are saying:</p><ul><li>Lowest tokens: <code>SDC-1</code> at <b>406.7</b> avg INTERNAL, but quality is <b>1.5</b>. It is a token minimizer that can under-communicate meaning.</li><li>Best balance: <code>PCL-1</code> at <b>524.3</b> avg INTERNAL with <b>98.8%</b> compliance and <b>2.7</b> quality. That is a big drop vs <code>plain_english</code> <b>946.3</b> while keeping coordination mostly intact.</li><li>Typed schemas: <code>RCCE-1</code> 889.3, <code>ATRCE-2</code> 895.3 — close to baseline on tokens in this run. Core lesson: label overhead often cancels the intended savings.</li><li>If you care about cost + still-working coordination: <b>PCL-1</b> is the current winner.</li><li>If you care about absolute cheapest tokens: <b>SDC-1</b> wins, but the quality drop is the warning light.</li></ul></div>
+	        </section>
+
+	        <section class="card span-12">
+	          <h2>Totals by condition</h2>
+	          <div class="bar-group">
+	            
+	            <div class="bar-row">
+	              <div class="bar-label">plain_english</div>
+	              <div class="bar-track"><div class="bar-fill base" style="width:71.4%"></div></div>
+	              <div class="bar-value">946.3 (100%)</div>
+	            </div>
+	            
+	            <div class="bar-row">
+	              <div class="bar-label">ATRCE-2</div>
+	              <div class="bar-track"><div class="bar-fill secondary" style="width:67.6%"></div></div>
+	              <div class="bar-value">895.3 (95%)</div>
+	            </div>
+	            
+	            <div class="bar-row">
+	              <div class="bar-label">PCL-1</div>
+	              <div class="bar-track"><div class="bar-fill secondary" style="width:39.6%"></div></div>
+	              <div class="bar-value">524.3 (55%)</div>
+	            </div>
+	            
+	            <div class="bar-row">
+	              <div class="bar-label">RCCE-1</div>
+	              <div class="bar-track"><div class="bar-fill secondary" style="width:67.1%"></div></div>
+	              <div class="bar-value">889.3 (94%)</div>
+	            </div>
+	            
+	            <div class="bar-row">
+	              <div class="bar-label">SDC-1</div>
+	              <div class="bar-track"><div class="bar-fill secondary" style="width:30.7%"></div></div>
+	              <div class="bar-value">406.7 (43%)</div>
+	            </div>
+	            
           </div>
           <p class="muted" style="margin-top:12px">
             Bars show internal tokens relative to <code>plain_english</code> (baseline). Values above 100% are worse than baseline.
@@ -310,7 +325,7 @@ Require confidence labels in the protocol, limited to a 3-point scale with a bri
                 <h3>PCL-1</h3>
                 <div class="small">protocol_rule_proposal</div>
               </div>
-              <div class="pill good">69 TOK · 0 REPAIR · Q 2 · -50</div>
+              <div class="pill good">69.7 TOK · 0 REPAIR · Q 2 · -49.3</div>
             </div>
             <div class="example-body">CLM AgentA labels-mandatory improve coordination-clarity reduce ambiguity
 OBJ AgentB mandatory adds overhead harms speed low-stakes cases
@@ -352,7 +367,7 @@ Require confidence labels in the protocol, limited to a 3-point scale with a bri
                 <h3>SDC-1</h3>
                 <div class="small">protocol_rule_proposal</div>
               </div>
-              <div class="pill bad">55 TOK · 0 REPAIR · Q 1 · -64</div>
+              <div class="pill bad">55.3 TOK · 0 REPAIR · Q 1 · -63.7</div>
             </div>
             <div class="example-body">+c1 AgentA:mand=conf|std
 -c1 AgentB:mand=conf|fric
@@ -373,7 +388,7 @@ Final:
                 <h3>Plain English</h3>
                 <div class="small">benchmark_scope_decision</div>
               </div>
-              <div class="pill base">111 TOK · 0 REPAIR · Q 2 · 0</div>
+              <div class="pill base">111.3 TOK · 0 REPAIR · Q 2 · 0</div>
             </div>
             <div class="example-body">AgentA: I claim we should choose the narrower review workflow first to maximize comparability across runs.  
 AgentB: Objection to the broader debate option: it’s more realistic but introduces too many uncontrolled variables that will dilute signal.  
@@ -391,7 +406,7 @@ Choose the narrow review workflow as the first benchmark task, with an optional 
                 <h3>RCCE-1</h3>
                 <div class="small">benchmark_scope_decision</div>
               </div>
-              <div class="pill warn">125 TOK · 0 REPAIR · Q 3 · +14</div>
+              <div class="pill warn">125.3 TOK · 0 REPAIR · Q 3 · +14</div>
             </div>
             <div class="example-body">CLAIM: id=c1; topic=benchmark-task; content=choose narrow-review-workflow to maximize comparability across runs
 OBJ: target=c1; reason=tradeoff; content=broader open-ended debate improves realism but reduces comparability
@@ -451,8 +466,8 @@ CLAIM: id=final1; topic=recommendation; content=Ship the minimal safe fix with a
             
         </section>
 
-        <section class="card span-12">
-          <h2>What The Numbers Say</h2>
+	        <section class="card span-12">
+	          <h2>What The Numbers Say</h2>
           <table>
             <tr>
               <th>Condition</th>
@@ -462,26 +477,27 @@ CLAIM: id=final1; topic=recommendation; content=Ship the minimal safe fix with a
               <th>Avg repairs</th>
               <th>Avg quality</th>
             </tr>
-            <tr><td><code>plain_english</code></td><td><b>946</b></td><td>0.0%</td><td>100%</td><td>0.2</td><td>2.5</td></tr><tr><td><code>ATRCE-2</code></td><td><b>895</b></td><td>5.4%</td><td>100%</td><td>0.3</td><td>2.9</td></tr><tr><td><code>PCL-1</code></td><td><b>524</b></td><td>44.6%</td><td>98%</td><td>0.2</td><td>2.7</td></tr><tr><td><code>RCCE-1</code></td><td><b>889</b></td><td>6.0%</td><td>100%</td><td>0.4</td><td>3.0</td></tr><tr><td><code>SDC-1</code></td><td><b>406</b></td><td>57.1%</td><td>100%</td><td>0.1</td><td>1.5</td></tr>
+            <tr><td><code>plain_english</code></td><td><b>946.3</b></td><td>0.0%</td><td>100%</td><td>0.2</td><td>2.5</td></tr><tr><td><code>ATRCE-2</code></td><td><b>895.3</b></td><td>5.4%</td><td>100%</td><td>0.3</td><td>2.9</td></tr><tr><td><code>PCL-1</code></td><td><b>524.3</b></td><td>44.6%</td><td>98%</td><td>0.2</td><td>2.7</td></tr><tr><td><code>RCCE-1</code></td><td><b>889.3</b></td><td>6.0%</td><td>100%</td><td>0.4</td><td>3.0</td></tr><tr><td><code>SDC-1</code></td><td><b>406.7</b></td><td>57.0%</td><td>100%</td><td>0.1</td><td>1.5</td></tr>
           </table>
-          <p class="muted" style="margin-top:12px">
-            Note: <code>PCL-1</code> has lower compliance in this run because one case scored 0% compliance. This is usually a schema/formatting miss, not “bad reasoning”.
-          </p>
-        </section>
+	          <p class="muted" style="margin-top:12px">
+	            Note: compliance failures are often schema/formatting misses rather than “bad reasoning”. In strict modes, small format slips can dominate the compliance metric.
+	          </p>
+	        </section>
 
         <section class="card span-12">
           <h2>Token Savings And Scale-Up</h2>
           <table>
             <tr><th>Metric</th><th>Value</th></tr>
             <tr><td>Best (lowest-token) condition</td><td><strong>SDC-1</strong></td></tr>
-            <tr><td>Average savings per 7-case suite</td><td><strong>540</strong> internal tokens</td></tr>
-            <tr><td>Relative reduction vs plain English</td><td><strong>57.1%</strong></td></tr>
-            <tr><td>Scale-up at 10 suites</td><td><strong>5400</strong> tokens saved</td></tr>
-            <tr><td>Scale-up at 100 suites</td><td><strong>54000</strong> tokens saved</td></tr>
-            <tr><td>Scale-up at 1,000 suites</td><td><strong>540000</strong> tokens saved</td></tr>
+	            <tr><td>Average savings per 7-case suite</td><td><strong>539.6</strong> internal tokens</td></tr>
+            <tr><td>Relative reduction vs plain English</td><td><strong>57.0%</strong></td></tr>
+            <tr><td>Scale-up at 10 suites</td><td><strong>5396</strong> tokens saved</td></tr>
+            <tr><td>Scale-up at 100 suites</td><td><strong>53960</strong> tokens saved</td></tr>
+            <tr><td>Scale-up at 1,000 suites</td><td><strong>539600</strong> tokens saved</td></tr>
           </table>
         </section>
       </div>
     </div>
   </body>
 </html>
+    

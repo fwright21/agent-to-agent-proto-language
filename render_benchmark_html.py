@@ -108,13 +108,24 @@ def _to_int(s):
     s = s.strip()
     s = s.strip("*")
     try:
-        return int(float(s))
+        return float(s)
     except ValueError:
         return None
 
 
 def _slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+def _fmt_num(n):
+    if n is None:
+        return "n/a"
+    try:
+        nf = float(n)
+    except (TypeError, ValueError):
+        return "n/a"
+    if abs(nf - round(nf)) < 1e-9:
+        return str(int(round(nf)))
+    return "{:.1f}".format(nf)
 
 
 def render_html(md_text, title):
@@ -143,7 +154,7 @@ def render_html(md_text, title):
             baseline_tokens = c["tokens"]
             break
     if baseline_tokens is None:
-        baseline_tokens = max(c["tokens"] or 1 for c in conds)
+        baseline_tokens = max(c["tokens"] or 1.0 for c in conds)
 
     # Order: baseline first, then the rest in stable order
     conds = sorted(
@@ -288,6 +299,16 @@ def render_html(md_text, title):
 
     .muted { color: var(--muted); }
 
+    .callout {
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      padding: 18px 18px 16px;
+      background: linear-gradient(180deg, rgba(15,118,110,0.06), rgba(29,78,216,0.04));
+    }
+    .callout h3 { margin: 0 0 8px; font-size: 16px; }
+    .callout ul { margin: 10px 0 0; padding-left: 18px; }
+    .callout li { margin: 6px 0; }
+
     .bar-group { display: grid; gap: 14px; }
     .bar-row {
       display: grid;
@@ -397,7 +418,7 @@ def render_html(md_text, title):
     # Bar chart rows (tokens vs baseline; allow >100% and color it "bad")
     bar_rows = []
     for c in conds:
-        tok = c["tokens"] or 0
+        tok = float(c["tokens"] or 0.0)
         ratio = (tok / float(baseline_tokens)) if baseline_tokens else 0.0
         # Scale: up to 140% to show overruns clearly.
         scale_max = 1.4
@@ -405,19 +426,19 @@ def render_html(md_text, title):
         fill_class = "base" if c["condition"] == "plain_english" else ("bad" if ratio > 1.0 else "secondary")
         bar_rows.append(
             """
-            <div class="bar-row">
-              <div class="bar-label">{cond}</div>
-              <div class="bar-track"><div class="bar-fill {cls}" style="width:{w}%"></div></div>
-              <div class="bar-value">{tok} ({ratio:.0f}%)</div>
-            </div>
-            """.format(
-                cond=esc(c["condition"]),
-                cls=esc(fill_class),
-                w=esc(round(width_pct, 1)),
-                tok=esc(tok),
-                ratio=ratio * 100.0,
-            )
-        )
+	            <div class="bar-row">
+	              <div class="bar-label">{cond}</div>
+	              <div class="bar-track"><div class="bar-fill {cls}" style="width:{w}%"></div></div>
+	              <div class="bar-value">{tok} ({ratio:.0f}%)</div>
+	            </div>
+	            """.format(
+	                cond=esc(c["condition"]),
+	                cls=esc(fill_class),
+	                w=esc(round(width_pct, 1)),
+	                tok=esc(_fmt_num(tok)),
+	                ratio=ratio * 100.0,
+	            )
+	        )
 
     # Table: per-case internal tokens + compliance per condition
     ths = ["Case"]
@@ -456,6 +477,58 @@ def render_html(md_text, title):
     best_red_txt = "n/a" if best_red is None else ("{:.1f}%".format(best_red))
     tradeoff_txt = best_tradeoff["condition"] if best_tradeoff else "n/a"
 
+    cond_by_name = {c["condition"]: c for c in conds}
+    sdc = cond_by_name.get("SDC-1")
+    pcl = cond_by_name.get("PCL-1")
+    rcce = cond_by_name.get("RCCE-1")
+    atrce = cond_by_name.get("ATRCE-2")
+    base = cond_by_name.get("plain_english")
+
+    def _fmt_pct(n):
+        if n is None:
+            return "n/a"
+        return "{:.1f}%".format(float(n))
+
+    conclusions_bits = []
+    conclusions_bits.append(
+        "<p><b>Conclusion:</b> This run shows a clear tradeoff frontier. Token minimization and coordination quality do not move together.</p>"
+    )
+    conclusions_bits.append("<p class=\"muted\">What the strict openai_exact numbers are saying:</p>")
+    bullet_lines = []
+    if sdc is not None:
+        bullet_lines.append(
+            "Lowest tokens: <code>SDC-1</code> at <b>{}</b> avg INTERNAL, but quality is <b>{}</b>. It is a token minimizer that can under-communicate meaning.".format(
+                esc(_fmt_num(sdc.get("tokens"))), esc(_fmt_num(sdc.get("quality")))
+            )
+        )
+    if pcl is not None:
+        bullet_lines.append(
+            "Best balance: <code>PCL-1</code> at <b>{}</b> avg INTERNAL with <b>{}</b> compliance and <b>{}</b> quality. That is a big drop vs <code>plain_english</code> <b>{}</b> while keeping coordination mostly intact.".format(
+                esc(_fmt_num(pcl.get("tokens"))),
+                esc(_fmt_pct(pcl.get("compliance"))),
+                esc(_fmt_num(pcl.get("quality"))),
+                esc(_fmt_num(base.get("tokens") if base else None)),
+            )
+        )
+    if rcce is not None or atrce is not None:
+        parts = []
+        if rcce is not None:
+            parts.append("<code>RCCE-1</code> {}".format(esc(_fmt_num(rcce.get("tokens")))))
+        if atrce is not None:
+            parts.append("<code>ATRCE-2</code> {}".format(esc(_fmt_num(atrce.get("tokens")))))
+        if parts:
+            bullet_lines.append(
+                "Typed schemas: {} — close to baseline on tokens in this run. Core lesson: label overhead often cancels the intended savings.".format(
+                    ", ".join(parts)
+                )
+            )
+
+    bullet_lines.append("If you care about cost + still-working coordination: <b>PCL-1</b> is the current winner.")
+    bullet_lines.append("If you care about absolute cheapest tokens: <b>SDC-1</b> wins, but the quality drop is the warning light.")
+
+    conclusions_bits.append("<ul>{}</ul>".format("".join("<li>{}</li>".format(x) for x in bullet_lines)))
+    conclusions_html = "<div class=\"callout\">{}</div>".format("".join(conclusions_bits))
+
     # Totals table + token savings (suite scale-up)
     def fmt_pct(x):
         if x is None:
@@ -463,11 +536,7 @@ def render_html(md_text, title):
         sign = "-" if x < 0 else ""
         return "{}{:.1f}%".format(sign, abs(float(x)))
 
-    suite_saved = (baseline_tokens - best_by_tokens["tokens"]) if (baseline_tokens is not None and best_by_tokens["tokens"] is not None) else None
-    suite_saved = int(suite_saved) if suite_saved is not None else None
-
-    def fmt_int(n):
-        return "n/a" if n is None else str(int(n))
+    suite_saved = (baseline_tokens - float(best_by_tokens["tokens"])) if (baseline_tokens is not None and best_by_tokens["tokens"] is not None) else None
 
     totals_rows = []
     for c in conds:
@@ -483,7 +552,7 @@ def render_html(md_text, title):
             "<td>{q}</td>"
             "</tr>".format(
                 cond=esc(c["condition"]),
-                tok=esc(c["tokens"]),
+                tok=esc(_fmt_num(c["tokens"])),
                 red=esc(red_txt),
                 comp=esc(int(c["compliance"] or 0)),
                 rep=esc(c["repair"] if c["repair"] is not None else "n/a"),
@@ -502,7 +571,7 @@ def render_html(md_text, title):
         if not cell:
             return None
         return {
-            "tokens": _to_int(cell.get("Internal Tokens", "")) or 0,
+            "tokens": _to_int(cell.get("Internal Tokens", "")) or 0.0,
             "compliance": _to_float(cell.get("Compliance", "")) or 0.0,
             "repairs": _to_float(cell.get("Repair Turns", "")) or 0.0,
             "quality": _to_float(cell.get("Final Quality", "")) or 0.0,
@@ -529,14 +598,14 @@ def render_html(md_text, title):
 
         pill_bits = []
         if m:
-            pill_bits.append("{} TOK".format(m["tokens"]))
+            pill_bits.append("{} TOK".format(_fmt_num(m["tokens"])))
             pill_bits.append("{} REPAIR".format(int(m["repairs"])))
             pill_bits.append("Q {}".format(int(m["quality"])))
             base = _case_metrics(case, "plain_english")
             if base and base["tokens"]:
                 delta = m["tokens"] - base["tokens"]
                 sign = "+" if delta > 0 else ""
-                pill_bits.append("{}{}".format(sign, delta))
+                pill_bits.append("{}{}".format(sign, _fmt_num(delta)))
         pill = " · ".join(pill_bits) if pill_bits else ""
 
         body = internal
@@ -597,10 +666,10 @@ def render_html(md_text, title):
       <section class="hero">
         <div class="eyebrow">Agent Coordination Benchmark</div>
         <h1>{title}</h1>
-        <p>
-          Lowest internal tokens in this run: <code>{best}</code> ({best_tokens} tokens, {best_red} vs baseline).
-          Best tradeoff (compliance ≥ 90% and quality ≥ 2.0): <code>{tradeoff}</code>.
-        </p>
+	        <p>
+	          Lowest internal tokens in this run: <code>{best}</code> ({best_tokens} tokens, {best_red} vs baseline).
+	          Best tradeoff (compliance ≥ 90% and quality ≥ 2.0): <code>{tradeoff}</code>.
+	        </p>
         <div class="meta">{meta}</div>
         <div class="kpis">
           <div class="kpi"><div class="value">{best_tokens}</div><div class="label">Lowest total internal tokens</div></div>
@@ -610,11 +679,16 @@ def render_html(md_text, title):
         </div>
       </section>
 
-      <div class="grid">
-        <section class="card span-12">
-          <h2>Totals by condition</h2>
-          <div class="bar-group">
-            {bars}
+	      <div class="grid">
+	        <section class="card span-12">
+	          <h2>Conclusions</h2>
+	          {conclusions}
+	        </section>
+
+	        <section class="card span-12">
+	          <h2>Totals by condition</h2>
+	          <div class="bar-group">
+	            {bars}
           </div>
           <p class="muted" style="margin-top:12px">
             Bars show internal tokens relative to <code>plain_english</code> (baseline). Values above 100% are worse than baseline.
@@ -641,8 +715,8 @@ def render_html(md_text, title):
           {examples}
         </section>
 
-        <section class="card span-12">
-          <h2>What The Numbers Say</h2>
+	        <section class="card span-12">
+	          <h2>What The Numbers Say</h2>
           <table>
             <tr>
               <th>Condition</th>
@@ -654,17 +728,17 @@ def render_html(md_text, title):
             </tr>
             {totals_rows}
           </table>
-          <p class="muted" style="margin-top:12px">
-            Note: <code>PCL-1</code> has lower compliance in this run because one case scored 0% compliance. This is usually a schema/formatting miss, not “bad reasoning”.
-          </p>
-        </section>
+	          <p class="muted" style="margin-top:12px">
+	            Note: compliance failures are often schema/formatting misses rather than “bad reasoning”. In strict modes, small format slips can dominate the compliance metric.
+	          </p>
+	        </section>
 
         <section class="card span-12">
           <h2>Token Savings And Scale-Up</h2>
           <table>
             <tr><th>Metric</th><th>Value</th></tr>
             <tr><td>Best (lowest-token) condition</td><td><strong>{best}</strong></td></tr>
-            <tr><td>Average savings per 7-case suite</td><td><strong>{suite_saved}</strong> internal tokens</td></tr>
+	            <tr><td>Average savings per 7-case suite</td><td><strong>{suite_saved}</strong> internal tokens</td></tr>
             <tr><td>Relative reduction vs plain English</td><td><strong>{best_red}</strong></td></tr>
             <tr><td>Scale-up at 10 suites</td><td><strong>{s10}</strong> tokens saved</td></tr>
             <tr><td>Scale-up at 100 suites</td><td><strong>{s100}</strong> tokens saved</td></tr>
@@ -675,7 +749,7 @@ def render_html(md_text, title):
     </div>
   </body>
 </html>
-""".format(
+    """.format(
         title=esc(title),
         css=css,
         meta=meta_html,
@@ -683,17 +757,18 @@ def render_html(md_text, title):
         ths="".join("<th>{}</th>".format(esc(x)) for x in ths),
         rows="".join(table_rows),
         best=esc(best_by_tokens["condition"]),
-        best_tokens=esc(best_by_tokens["tokens"]),
+        best_tokens=esc(_fmt_num(best_by_tokens["tokens"])),
         best_red=esc(best_red_txt),
         best_comp=esc(int(best_by_tokens["compliance"] or 0)),
-        base_tokens=esc(baseline_tokens),
+        base_tokens=esc(_fmt_num(baseline_tokens)),
         tradeoff=esc(tradeoff_txt),
+        conclusions=conclusions_html,
         examples="".join(example_sections) if example_sections else "<p class=\"muted\">No examples found in markdown.</p>",
         totals_rows="".join(totals_rows),
-        suite_saved=esc(fmt_int(suite_saved)),
-        s10=esc(fmt_int(suite_saved * 10 if suite_saved is not None else None)),
-        s100=esc(fmt_int(suite_saved * 100 if suite_saved is not None else None)),
-        s1000=esc(fmt_int(suite_saved * 1000 if suite_saved is not None else None)),
+        suite_saved=esc(_fmt_num(suite_saved)),
+        s10=esc(_fmt_num(suite_saved * 10 if suite_saved is not None else None)),
+        s100=esc(_fmt_num(suite_saved * 100 if suite_saved is not None else None)),
+        s1000=esc(_fmt_num(suite_saved * 1000 if suite_saved is not None else None)),
     )
 
 
