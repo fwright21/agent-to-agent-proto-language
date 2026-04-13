@@ -33,57 +33,15 @@ That structure is a **structured coordination format**.
 
 This is a promising direction, backed by benchmark runs, not a one-size-fits-all standard.
 
-## 🧩 Think “format”, not “new language”
+## 👩‍💻 Linguistic methodology (how protocols are designed)
 
-A protocol here is a **structured internal coordination format**: a small set of action types + predictable slots.
+Protocols are designed via a “linguist panel” debate loop:
 
-If it helps, think “JSON for agent actions”:
-- structured and debuggable
-- compressible
-- expandable back into readable logs when needed
+1) Debate: personas argue about what must stay explicit for coordination (reference clarity, recoverability, information density).  
+2) Spec: the winning idea becomes a concrete set of actions + formatting rules.  
+3) Benchmark: we run the same tasks and measure tokens, compliance, repair turns, and final output quality.  
 
-This is not intended to replace human-readable logs. Compressed communication can always be expanded into a readable form for debugging and audit.
-
-## Before / after
-
-Round 5 strict `missing_evidence_repair` INTERNAL sample.
-
-Normal coordination:
-
-```text
-AgentA: I claim this compression scheme reduces message sizes by 80% across all tasks.
-AgentB: Please provide evidence or data to support that claim.
-AgentC: We ran a small pilot on 30 transcripts and saw an average 35% reduction; no evidence of 80% across all tasks.
-AgentD: Confidence: low on the 80% claim, moderate on a 30–40% range given the pilot.
-AgentA: Based on the pilot, I revise the claim to 35% average reduction on the sampled transcripts.
-AgentB: That revision is supported by the pilot summary.
-AgentC: Agree to revise; the original claim is unsupported.
-AgentD: Final decision should be revise, not keep.
-```
-
-Compressed coordination format (PCL-1):
-
-```text
-CLM AgentA comp_all+30%
-ASK AgentB evd? scope?
-EVD AgentC testset=bench01 n=50 gain=12% not 30
-CNF AgentD conf=low
-REV AgentA comp_all+12%
-NXT AgentB decide keep_rev
-CNF AgentC conf=med
-NXT AgentD decision=revise
-```
-
-Same moves. Less overhead.
-Same moves, but you can always expand it back into a readable trace when debugging.
-
-Expanded (debug view):
-
-```text
-CLM AgentA comp_all+30%   -> Claim: “compression improves across tasks by ~30%”
-ASK AgentB evd? scope?    -> Ask: “what evidence and what scope?”
-REV AgentA comp_all+12%   -> Revise: “update claim to ~12%”
-```
+The point is to make tradeoffs measurable, not ideological.
 
 ## 👩‍💻 What do linguists do here?
 
@@ -129,29 +87,47 @@ Compact coordination format:
 Semantically dense code:
 - `SDC-1` operator-prefixed code, `+c1 ...`, `-c1 ...`
 
-## 🔁 Timeline (very short)
+## 📊 Results (evidence)
 
-- R1–R3: define the benchmark scaffolding (moves, templates, failure modes).
-- R4: test typed schemas (`RCCE-1`, `ATRCE-2`).
-- R5: test compression frontier (`PCL-1`, `SDC-1`).
+From the saved benchmark reports in this repo, the results from each protocol are:
 
-Details + artifacts live in `WORKFLOW.md`.
-
-## 📊 Key results (tokenizer-native)
-
-Pulled from saved `openai_exact` reports (tokenizer-native via `tiktoken`), not estimates.
-
-Round 5 strict, Codex, repeats=3:
-- `PCL-1`: 524.3 avg INTERNAL tokens (44.6% lower vs baseline), 98.8% compliance
-- `SDC-1`: 406.7 avg INTERNAL tokens (57.0% lower), but quality dropped in the suite
-
-Round 4 typed schemas, Prompt 2 (local, `openai_exact`):
-- `RCCE-1` / `ATRCE-2` were worse than baseline on tokens in that run (label overhead is real)
+- `plain_english`: 946.3 avg INTERNAL tokens
+- `RCCE-1`: 889.3 avg INTERNAL tokens
+- `ATRCE-2`: 895.3 avg INTERNAL tokens
+- `PCL-1`: 524.3 avg INTERNAL tokens, 98.8% compliance
+- `SDC-1`: 406.7 avg INTERNAL tokens (but quality dropped in the suite)
 
 ## 👉 Takeaway
 
 - If you care about cost + still-working coordination: `PCL-1` is the current winner in this repo’s strict run.
 - If you only care about the smallest token count: `SDC-1` wins tokens, but it is not the best single “default” protocol here (quality dropped in the suite).
+
+## Before / after (example)
+
+Normal coordination:
+
+```text
+AgentA: I claim this reduces internal tokens by ~30% across tasks.
+AgentB: Please provide evidence and clarify scope.
+AgentC: In our test set we saw closer to ~12%, not 30%.
+AgentA: OK — revising the claim to ~12%.
+```
+
+Compressed coordination (PCL-1):
+
+```text
+CLM AgentA comp_all+30%
+ASK AgentB evd? scope?
+EVD AgentC testset=bench01 gain=12% not 30
+REV AgentA comp_all+12%
+```
+
+Expanded (debug view):
+
+```text
+CLM AgentA comp_all+30% -> Claim: “~30% across tasks”
+REV AgentA comp_all+12% -> Revise: “~12% on test set”
+```
 
 ## Reports and dashboards
 
