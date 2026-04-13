@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard (Trusted: openai_exact)</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --line:#22304a;
+      --good:#22c55e; --blue:#60a5fa; --warn:#fbbf24; --bad:#fb7185;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:radial-gradient(circle at 15% 10%,rgba(96,165,250,.18),transparent 35%),radial-gradient(circle at 85% 10%,rgba(34,197,94,.14),transparent 35%),var(--bg);color:var(--text);}
+    .wrap{max-width:1240px;margin:0 auto;padding:34px 20px 70px;}
+	    .hero{background:linear-gradient(120deg,rgba(96,165,250,.22),rgba(34,197,94,.18));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px 18px 16px;}
+	    h1{margin:0;font-size:22px;letter-spacing:-.02em;}
+	    .sub{margin-top:6px;color:var(--muted);font-size:13px;}
+	    .toolbar{position:sticky;top:0;z-index:10;margin-top:12px;background:rgba(11,18,32,.72);backdrop-filter: blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 10px 8px;}
+	    .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;}
+	    .tools-left{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+	    .tools-right{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+	    .search{display:flex;align-items:center;gap:8px}
+	    .search input{width:min(420px,70vw);padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(15,23,42,.78);color:var(--text);font-size:13px;outline:none}
+	    .search input::placeholder{color:rgba(148,163,184,.85)}
+    .btn{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(15,23,42,.78);color:var(--text);font-size:13px;cursor:pointer}
+    .btn:hover{border-color:rgba(96,165,250,.40)}
+    .nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .nav a{display:inline-block;padding:7px 9px;border:1px solid rgba(255,255,255,.10);border-radius:999px;background:rgba(15,23,42,.55);color:#cbd5e1;font-size:12px}
+    .nav a:hover{border-color:rgba(96,165,250,.40);text-decoration:none}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px;}
+    .summary{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px;}
+    .summary .box{background:rgba(15,23,42,.82);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;}
+    .summary h2{margin:0 0 6px;font-size:14px;}
+    .summary .muted{color:var(--muted);font-size:12px;line-height:1.45;}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+    .chip{display:inline-flex;gap:8px;align-items:baseline;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.02);font-size:12px;color:#cbd5e1;}
+    .chip b{font-variant-numeric:tabular-nums;}
+    .card{background:rgba(15,23,42,.82);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;}
+    .card h2{margin:0 0 8px;font-size:16px;}
+    .meta{margin:0 0 10px;padding-left:18px;color:var(--muted);font-size:12px;}
+    .meta .k{color:#cbd5e1;}
+    code{font-family:var(--mono);font-size:12px;color:#e2e8f0;}
+    a{color:var(--blue);text-decoration:none;}
+    a:hover{text-decoration:underline;}
+	    .tbl{width:100%;border-collapse:collapse;overflow:hidden;border-radius:12px;}
+	    .tbl th,.tbl td{border-bottom:1px solid rgba(255,255,255,.08);padding:10px 10px;text-align:left;font-size:13px;}
+	    .tbl th{color:#cbd5e1;font-weight:600;background:rgba(255,255,255,.03);}
+	    .hidden{display:none !important;}
+	    .bars{margin:12px 0 10px;display:grid;gap:8px;}
+	    .bar-row{display:grid;grid-template-columns:190px 1fr 88px;gap:10px;align-items:center;}
+	    .bar-label{color:#cbd5e1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .bar-track{position:relative;height:10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);overflow:hidden;}
+    .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg, rgba(96,165,250,.9), rgba(34,197,94,.9));}
+    .bar-num{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;text-align:right;}
+    details{margin-top:10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.02);}
+    summary{cursor:pointer;color:#cbd5e1;font-size:13px;}
+    .ex-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;}
+    .ex-card{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;background:rgba(15,23,42,.5);}
+    .ex-h{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:6px;}
+    .ex-h .name{font-size:12px;color:#e2e8f0;}
+    .ex-h .case{font-size:11px;color:var(--muted);font-family:var(--mono);}
+    pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;color:#e5e7eb;font-size:12px;line-height:1.45;}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.12);font-size:11px;color:var(--muted);margin-left:8px;}
+    .pill.good{color:#bbf7d0;border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08);}
+    .pill.warn{color:#fde68a;border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08);}
+    .footer{margin-top:14px;color:var(--muted);font-size:12px;}
+    @media (max-width: 960px){.wrap{padding:26px 14px 60px;}}
+    @media (max-width: 960px){.bar-row{grid-template-columns:1fr 1fr 70px;}.ex-grid{grid-template-columns:1fr;}}
+    </style>
+</head>
+<body>
+    <div class="wrap">
+      <div class="hero">
+        <h1>Dashboard (Trusted: openai_exact)</h1>
+        <div class="sub">Generated 2026-04-13 20:21 · Each panel is one benchmark report; within each panel, tokens and deltas are only comparable to that report’s own <code>plain_english</code> baseline.</div>
+      </div>
+      <div class="summary"><div class="box"><h2>Key Takeaways</h2><div class="muted">Across the included reports, this is how often each condition wins the two simple heuristics used in the tables.</div><div style="height:10px"></div><div class="muted"><b>Best tradeoff</b>: compliance ≥ 90% and quality ≥ 2.0, then lowest tokens.</div><div class="muted"><b>Best tradeoff winner:</b> <code>PCL-1</code> (1/2 reports)</div><div class="chips"><span class="chip"><code>PCL-1</code> <b>1</b></span><span class="chip"><code>plain_english</code> <b>1</b></span></div><div style="height:10px"></div><div class="muted"><b>Lowest tokens</b>: lowest total internal tokens, ignoring quality.</div><div class="muted"><b>Lowest tokens winner:</b> <code>SDC-1</code> (1/2 reports)</div><div class="chips"><span class="chip"><code>SDC-1</code> <b>1</b></span><span class="chip"><code>plain_english</code> <b>1</b></span></div></div></div>
+      <div class="toolbar">
+        <div class="tools">
+          <div class="tools-left">
+            <div class="search">
+              <input id="q" type="search" placeholder="Filter reports by label…" autocomplete="off" />
+            <button class="btn" id="clear-filter" type="button">Clear</button>
+          </div>
+        </div>
+        <div class="tools-right">
+          <button class="btn" id="toggle-examples" data-open="0" type="button">Expand examples</button>
+        </div>
+      </div>
+      <div class="nav"><a href="#round-4-prompt-2-local-openai-exact" title="Jump to Round 4 Prompt 2 (local, openai_exact)">Round 4 Prompt 2 (local, openai_exact)</a><a href="#round-5-codex-strict-r2-repeats-3-openai-exact" title="Jump to Round 5 Codex strict r2 (repeats=3, openai_exact)">Round 5 Codex strict r2 (repeats=3, openai_exact)</a></div>
+    </div>
+    <div class="grid">
+      <section class="card" id="round-4-prompt-2-local-openai-exact" data-label="round 4 prompt 2 (local, openai_exact)"><h2>Round 4 Prompt 2 (local, openai_exact)</h2><div class="sub"><a href="round_04_linguistic_revision_2026-04-08/10_round4_debate_test_results_prompt2_openai_exact.md">round_04_linguistic_revision_2026-04-08/10_round4_debate_test_results_prompt2_openai_exact.md</a></div><ul class="meta"><li><span class="k">Generated:</span> <code>2026-04-12 21:11</code></li><li><span class="k">Runner:</span> <code>`local`</code></li><li><span class="k">Count mode:</span> <code>`openai_exact`</code></li><li><span class="k">Repeats per condition/case:</span> <code>`3`</code></li><li><span class="k">Baseline:</span> <code>`plain_english`</code></li><li><span class="k">Conditions:</span> <code>`plain_english`, `RCCE-1`, `ATRCE-2`</code></li></ul><div class="bars"><div class="bar-row"><div class="bar-label"><code>plain_english</code> best tradeoff</div><div class="bar-track"><div class="bar-fill" style="width:88%;"></div></div><div class="bar-num">530</div></div><div class="bar-row"><div class="bar-label"><code>ATRCE-2</code></div><div class="bar-track"><div class="bar-fill" style="width:99%;"></div></div><div class="bar-num">597</div></div><div class="bar-row"><div class="bar-label"><code>RCCE-1</code></div><div class="bar-track"><div class="bar-fill" style="width:100%;"></div></div><div class="bar-num">600</div></div></div><table class="tbl"><thead><tr><th>Condition</th><th>Tokens</th><th>Δ vs plain_english</th><th>Compliance</th><th>Repair</th><th>Quality</th></tr></thead><tbody><tr><td><code>plain_english</code><span class="pill good">best tradeoff</span></td><td>530</td><td>+0.0%</td><td>100.0%</td><td>0.1</td><td>2.4</td></tr><tr><td><code>ATRCE-2</code></td><td>597</td><td>-12.6%</td><td>100.0%</td><td>0.3</td><td>2.3</td></tr><tr><td><code>RCCE-1</code></td><td>600</td><td>-13.2%</td><td>100.0%</td><td>0.4</td><td>2.3</td></tr></tbody></table><details><summary>Examples (plain_english vs best tradeoff)</summary><div class="ex-grid"><div class="ex-card"><div class="ex-h"><div class="name"><code>plain_english</code></div><div class="case">missing_evidence_repair</div></div><pre>AgentA: The protocol is probably more reliable if we keep the structure small.
+AgentB: Can you show evidence for that claim?
+AgentC: In the earlier design notes, shorter fixed schemas were easier to validate than free prose.
+AgentD: Then we should keep the claim but narrow it to cases where validation is the priority.
+
+FINAL:
+Keep the claim, but revise it to say short fixed schemas help validation in narrow benchmark tasks.</pre></div><div class="ex-card"><div class="ex-h"><div class="name"><code>plain_english</code></div><div class="case">missing_evidence_repair</div></div><pre>AgentA: The protocol is probably more reliable if we keep the structure small.
+AgentB: Can you show evidence for that claim?
+AgentC: In the earlier design notes, shorter fixed schemas were easier to validate than free prose.
+AgentD: Then we should keep the claim but narrow it to cases where validation is the priority.
+
+FINAL:
+Keep the claim, but revise it to say short fixed schemas help validation in narrow benchmark tasks.</pre></div></div><div class="ex-grid"><div class="ex-card"><div class="ex-h"><div class="name"><code>plain_english</code></div><div class="case">benchmark_scope_decision</div></div><pre>AgentA: Start with a narrow review workflow because it is easier to compare across runs.
+AgentB: I object to making it too narrow, since realism matters for coordination quality.
+AgentC: The benchmark should begin narrow and expand later, so we can measure a clear baseline first.
+AgentD: Revise the plan to use a narrow first benchmark with a later expansion path.
+
+FINAL:
+Choose a narrow first benchmark, then expand to broader tasks after the baseline is stable.</pre></div><div class="ex-card"><div class="ex-h"><div class="name"><code>plain_english</code></div><div class="case">benchmark_scope_decision</div></div><pre>AgentA: Start with a narrow review workflow because it is easier to compare across runs.
+AgentB: I object to making it too narrow, since realism matters for coordination quality.
+AgentC: The benchmark should begin narrow and expand later, so we can measure a clear baseline first.
+AgentD: Revise the plan to use a narrow first benchmark with a later expansion path.
+
+FINAL:
+Choose a narrow first benchmark, then expand to broader tasks after the baseline is stable.</pre></div></div></details></section><section class="card" id="round-5-codex-strict-r2-repeats-3-openai-exact" data-label="round 5 codex strict r2 (repeats=3, openai_exact)"><h2>Round 5 Codex strict r2 (repeats=3, openai_exact)</h2><div class="sub"><a href="round_05_proto_language_and_dense_code_2026-04-08/11_round5_codex_results_r2_strict_repeats3.md">round_05_proto_language_and_dense_code_2026-04-08/11_round5_codex_results_r2_strict_repeats3.md</a></div><ul class="meta"><li><span class="k">Generated:</span> <code>2026-04-12 21:11</code></li><li><span class="k">Runner:</span> <code>`codex`</code></li><li><span class="k">Count mode:</span> <code>`openai_exact`</code></li><li><span class="k">Repeats per condition/case:</span> <code>`3`</code></li><li><span class="k">Baseline:</span> <code>`plain_english`</code></li><li><span class="k">Conditions:</span> <code>`plain_english`, `RCCE-1`, `ATRCE-2`, `PCL-1`, `SDC-1`</code></li></ul><div class="bars"><div class="bar-row"><div class="bar-label"><code>plain_english</code></div><div class="bar-track"><div class="bar-fill" style="width:100%;"></div></div><div class="bar-num">946</div></div><div class="bar-row"><div class="bar-label"><code>ATRCE-2</code></div><div class="bar-track"><div class="bar-fill" style="width:94%;"></div></div><div class="bar-num">895</div></div><div class="bar-row"><div class="bar-label"><code>PCL-1</code> best tradeoff</div><div class="bar-track"><div class="bar-fill" style="width:55%;"></div></div><div class="bar-num">524</div></div><div class="bar-row"><div class="bar-label"><code>RCCE-1</code></div><div class="bar-track"><div class="bar-fill" style="width:93%;"></div></div><div class="bar-num">889</div></div><div class="bar-row"><div class="bar-label"><code>SDC-1</code> lowest tokens</div><div class="bar-track"><div class="bar-fill" style="width:42%;"></div></div><div class="bar-num">406</div></div></div><table class="tbl"><thead><tr><th>Condition</th><th>Tokens</th><th>Δ vs plain_english</th><th>Compliance</th><th>Repair</th><th>Quality</th></tr></thead><tbody><tr><td><code>plain_english</code></td><td>946</td><td>+0.0%</td><td>100.0%</td><td>0.2</td><td>2.5</td></tr><tr><td><code>ATRCE-2</code></td><td>895</td><td>+5.4%</td><td>100.0%</td><td>0.3</td><td>2.9</td></tr><tr><td><code>PCL-1</code><span class="pill good">best tradeoff</span></td><td>524</td><td>+44.6%</td><td>98.8%</td><td>0.2</td><td>2.7</td></tr><tr><td><code>RCCE-1</code></td><td>889</td><td>+6.0%</td><td>100.0%</td><td>0.4</td><td>3.0</td></tr><tr><td><code>SDC-1</code><span class="pill warn">lowest tokens</span></td><td>406</td><td>+57.1%</td><td>100.0%</td><td>0.1</td><td>1.5</td></tr></tbody></table><details><summary>Examples (plain_english vs best tradeoff)</summary><div class="ex-grid"><div class="ex-card"><div class="ex-h"><div class="name"><code>plain_english</code></div><div class="case">missing_evidence_repair</div></div><pre>AgentA: I claim this compression scheme reduces message sizes by 80% across all tasks.
+AgentB: Please provide evidence or data to support that claim.
+AgentC: We ran a small pilot on 30 transcripts and saw an average 35% reduction; no evidence of 80% across all tasks.
+AgentD: Confidence: low on the 80% claim, moderate on a 30–40% range given the pilot.
+AgentA: Based on the pilot, I revise the claim to 35% average reduction on the sampled transcripts.
+AgentB: That revision is supported by the pilot summary.
+AgentC: Agree to revise; the original claim is unsupported.
+AgentD: Final decision should be revise, not keep.
+
+FINAL:
+Revise the claim to: “In a small pilot of 30 transcripts, the scheme achieved about 35% average reduction; broader performance is unknown.”</pre></div><div class="ex-card"><div class="ex-h"><div class="name"><code>PCL-1</code></div><div class="case">missing_evidence_repair</div></div><pre>CLM AgentA comp_all+30%
+ASK AgentB evd? scope?
+EVD AgentC testset=bench01 n=50 gain=12% not 30
+CNF AgentD conf=low
+REV AgentA comp_all+12%
+NXT AgentB decide keep_rev
+CNF AgentC conf=med
+NXT AgentD decision=revise
+
+FINAL:
+Revise claim: use ~12% compression gain on bench01 (n=50); do not keep the 30% all-case claim.</pre></div></div><div class="ex-grid"><div class="ex-card"><div class="ex-h"><div class="name"><code>plain_english</code></div><div class="case">benchmark_scope_decision</div></div><pre>AgentA: I claim we should choose the narrower review workflow first to maximize comparability across runs.  
+AgentB: Objection to the broader debate option: it’s more realistic but introduces too many uncontrolled variables that will dilute signal.  
+AgentC: Rationale: a narrow workflow constrains tasks, making outputs easier to score and trends easier to detect without heavy rubric drift.  
+AgentD: Revision/compromise: pick a narrow review workflow now, but include one optional open-ended follow-up question to keep some realism.
+
+FINAL:
+Choose the narrow review workflow as the first benchmark task, with an optional small open-ended extension for realism.</pre></div><div class="ex-card"><div class="ex-h"><div class="name"><code>PCL-1</code></div><div class="case">benchmark_scope_decision</div></div><pre>CLM AgentA narrow-review comparability-high
+OBJ AgentB narrow-review realism-low
+EVD AgentC open-debate realism-high task-diversity
+REV AgentD compromise primary narrow-review + add tiny open-debate variant
+CNF AgentA accept compromise keep benchmark core narrow
+NXT AgentB finalize narrow-review with optional open-debate add-on
+
+FINAL:
+Recommend a narrow review workflow as the primary benchmark for high comparability, with a small open-ended debate variant as an optional add-on to preserve realism.</pre></div></div></details></section>
+    </div>
+    <div class="footer">This dashboard adds token bars + a small set of examples per report. For full per-case breakdowns, open the per-round HTML reports.</div>
+  </div>
+  
+    <script>
+      (function(){
+        const q = document.getElementById('q');
+        const cards = Array.from(document.querySelectorAll('.card[data-label]'));
+        const details = Array.from(document.querySelectorAll('details'));
+        const btnExamples = document.getElementById('toggle-examples');
+        const btnClear = document.getElementById('clear-filter');
+
+        function applyFilter() {
+          const term = (q.value || '').trim().toLowerCase();
+          cards.forEach(card => {
+            const label = card.getAttribute('data-label') || '';
+            card.classList.toggle('hidden', term && !label.includes(term));
+          });
+        }
+
+        function setExamples(open) {
+          details.forEach(d => { d.open = !!open; });
+          btnExamples.setAttribute('data-open', open ? '1' : '0');
+          btnExamples.textContent = open ? 'Collapse examples' : 'Expand examples';
+        }
+
+        q.addEventListener('input', applyFilter);
+        btnClear.addEventListener('click', () => { q.value=''; applyFilter(); q.focus(); });
+        btnExamples.addEventListener('click', () => {
+          const open = btnExamples.getAttribute('data-open') !== '1';
+          setExamples(open);
+        });
+
+        applyFilter();
+        setExamples(false);
+      })();
+    </script>
+    
+</body>
+</html>

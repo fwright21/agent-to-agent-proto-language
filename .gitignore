@@ -5,7 +5,11 @@
 __pycache__/
 .codex_tmp/
 
+# Local docs (keep off GitHub, but keep locally)
+WORKFLOW.md
+
 # Generated HTML (regenerate; not required for repo)
-*.html
-!docs/index.html
-!docs/final_report.html
+dashboard_historical.html
+benchmark_report_round5_codex_strict.html
+dashboard_trusted.html
+combined_round4_round5_dashboard.html

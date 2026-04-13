@@ -97,6 +97,8 @@ From the saved benchmark reports in this repo, the results from each protocol ar
 - `PCL-1`: 524.3 avg INTERNAL tokens, 98.8% compliance
 - `SDC-1`: 406.7 avg INTERNAL tokens (but quality dropped in the suite)
 
+Final results page (GitHub Pages): `docs/final_results.html`
+
 ## 👉 Takeaway
 
 - If you care about cost + still-working coordination: `PCL-1` is the current winner in this repo’s strict run.
@@ -140,7 +142,7 @@ bash scripts/build_docs_site.sh
 Then GitHub: Settings → Pages → deploy from `main` → `/docs`.
 
 - Landing page: `docs/index.html`
-- Compiled report: `docs/final_report.html`
+- Final results: `docs/final_results.html`
 
 ## Run it yourself
 
