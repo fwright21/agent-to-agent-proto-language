@@ -6,5 +6,6 @@ __pycache__/
 .codex_tmp/
 
 # Generated HTML (regenerate; not required for repo)
-dashboard_historical.html
-benchmark_report_round5_codex_strict.html
+*.html
+!docs/index.html
+!docs/final_report.html

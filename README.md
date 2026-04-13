@@ -140,8 +140,7 @@ bash scripts/build_docs_site.sh
 Then GitHub: Settings → Pages → deploy from `main` → `/docs`.
 
 - Landing page: `docs/index.html`
-- Trusted dashboard: `docs/dashboard_trusted.html`
-- Round 5 strict report: `docs/round5_strict_r2.html`
+- Compiled report: `docs/final_report.html`
 
 ## Run it yourself
 
