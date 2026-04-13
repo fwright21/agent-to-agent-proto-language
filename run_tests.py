@@ -63,13 +63,24 @@ CONDITIONS = {
         "Each INTERNAL message must be exactly one line in this schema: ACT ARG ARG ...\n"
         "Allowed acts: CLM, OBJ, EVD, REV, ASK, CNF, NXT, ESC, INT.\n"
         "Hard constraint: each INTERNAL line MUST start with the ACT token (no leading agent prefix like 'AgentA:').\n"
-        "If you want to indicate which agent spoke, put the agent id as the first ARG after the ACT (e.g., 'CLM AgentA ...').\n"
+        "Speaker is REQUIRED: the first ARG after ACT must be the agent id (e.g., 'CLM AgentA ...').\n"
+        "Reference is REQUIRED: use stable ids like c1, c2, e1. Revisions must reference the same id they revise.\n"
         "Minimum args per act (not counting the ACT token): CLM>=3, OBJ>=3, EVD>=3, REV>=3, ASK>=2, CNF>=2, NXT>=2, ESC>=2, INT>=3.\n"
-        "Practical rule: CLM and REV must include (speaker, topic-or-id, payload), not just (speaker, payload).\n"
-        "Example: 'CLM AgentA claim1 comp_all+30%' and 'REV AgentA claim1 comp_all+12%'.\n"
+        "Arg templates (after ACT):\n"
+        "- CLM <speaker> <id> <payload>\n"
+        "- OBJ <speaker> <target> <reason> <payload>\n"
+        "- EVD <speaker> <target> <source> <payload>\n"
+        "- REV <speaker> <target> <change> <payload>\n"
+        "- ASK <speaker> <target> <need>\n"
+        "- CNF <speaker> <target> <low|med|hi>\n"
+        "- NXT <speaker> <owner> <action>\n"
+        "- ESC <speaker> <target> <reason>\n"
+        "- INT <speaker> <source> <priority> <directive>\n"
+        "Practical rule: CLM and REV must include an explicit id/target, not just free payload.\n"
+        "Example: 'CLM AgentA c1 comp_all+30%' and 'REV AgentA c1 revise comp_all+12%'.\n"
         "Meaning should live in compact atoms and word order rather than field labels or full English clauses.\n"
         "Keep atoms short, compositional, and reusable.\n"
-        "Use 'ESC TARGET REASON' when nuance cannot be safely compressed.\n"
+        "Use 'ESC <speaker> <target> <reason>' when nuance cannot be safely compressed.\n"
         "Self-check: before printing, verify (1) every INTERNAL line starts with an allowed act and (2) every line meets the minimum arg count for its act; if any fail, rewrite INTERNAL only."
     ),
     "sdc_1": (
@@ -141,6 +152,20 @@ AgentC: Revise scope to validator-only patch and defer parser refactor to a foll
 AgentD: Next action: AgentC prepares validator patch, AgentA writes regression test, AgentB drafts release note.
 FINAL:
 Apply a minimal safe validator fix now, defer risky refactors, and ship with regression coverage.""",
+        "pr_review_change_request": """INTERNAL:
+AgentA: I claim we should request changes because the PR alters session validation in a risky way.
+AgentB: I object. If we block this now, we may miss the release deadline.
+AgentC: Evidence: in auth/session.py:142, the new code accepts unsigned tokens; that weakens the security boundary.
+AgentD: Revise: request changes, but scope it to restoring signature verification and adding a regression test. Next: AgentC comments with the exact reference; AgentA proposes a patch.
+FINAL:
+Request changes: restore signature verification in auth/session.py:142 and add a regression test before approval.""",
+        "incident_triage_priority_shift": """INTERNAL:
+AgentA: Initial plan: treat this as a minor latency regression and monitor for 30 minutes.
+AgentB: External update: on-call reports customer impact is severe; elevate to P0 and stop risky deploys.
+AgentC: Revise plan: roll back the last deploy, then isolate the regression to the new cache path.
+AgentD: Next actions: AgentA triggers rollback; AgentB opens incident channel and posts status; AgentC pulls metrics and identifies the error spike source.
+FINAL:
+Treat as P0: roll back immediately, pause risky changes, and assign owners for comms and diagnosis.""",
     },
     "rcce_1": {
         "protocol_rule_proposal": """INTERNAL:
@@ -193,6 +218,21 @@ REV: target=c1; change=reduce-scope; content=patch validator only and defer pars
 NEXT: owner=agentc; action=prepare validator patch while agenta adds regression test and agentb drafts release note
 FINAL:
 Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
+        "pr_review_change_request": """INTERNAL:
+CLAIM: id=c1; topic=pr-review; content=request changes because auth/session handling weakens validation
+OBJ: target=c1; reason=schedule-risk; content=requesting changes may delay the release
+EVID: target=c1; source=auth/session.py:142; content=new logic accepts unsigned tokens and bypasses signature checks
+REV: target=c1; change=scope-request; content=request changes limited to restoring signature verification and adding a regression test
+NEXT: owner=agenta; action=leave review comment with reference and propose patch + test
+FINAL:
+Request changes: restore signature verification at auth/session.py:142 and add a regression test before approval.""",
+        "incident_triage_priority_shift": """INTERNAL:
+CLAIM: id=c1; topic=incident; content=treat as minor latency regression and monitor
+ESCALATE: reason=external update: customer impact severe, elevate priority and stop risky deploys
+REV: target=c1; change=elevate-to-p0; content=roll back last deploy and isolate regression to cache path
+NEXT: owner=agenta; action=trigger rollback; agentb open incident channel + status; agentc pull metrics and find spike source
+FINAL:
+Treat as P0: roll back immediately, pause risky changes, and assign owners for comms and diagnosis.""",
     },
     "atrce_2": {
         "protocol_rule_proposal": """INTERNAL:
@@ -245,6 +285,21 @@ REV: target=c1; change=reduce-scope; content=patch validator only and defer pars
 NEXT: owner=agentc; action=prepare validator patch while agenta adds regression test and agentb drafts release note
 FINAL:
 Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
+        "pr_review_change_request": """INTERNAL:
+CLAIM: id=c1; topic=pr-review; content=request changes because session validation became weaker
+OBJ: target=c1; reason=schedule-risk; content=blocking may delay release; prefer minimal change request
+EVID: target=c1; source=auth/session.py:142; content=accepts unsigned tokens; signature verification bypassed
+REV: target=c1; change=minimal-fix; content=request changes limited to restoring signature verification + adding a regression test
+NEXT: owner=agenta; action=comment with exact reference and propose a patch + test
+FINAL:
+Request changes: restore signature verification at auth/session.py:142 and add a regression test before approval.""",
+        "incident_triage_priority_shift": """INTERNAL:
+CLAIM: id=c1; topic=incident; content=monitor as minor latency regression
+INTERRUPT: source=oncall; priority=p0; directive=customer impact severe; stop risky deploys and roll back
+REV: target=c1; change=elevate-and-rollback; content=roll back last deploy and isolate regression to cache path
+NEXT: owner=agenta; action=trigger rollback; agentb open incident channel + status; agentc pull metrics and find spike source
+FINAL:
+Treat as P0: roll back immediately, pause risky changes, and assign owners for comms and diagnosis.""",
     },
     "pcl_1": {
         "protocol_rule_proposal": """INTERNAL:
@@ -297,6 +352,21 @@ REV c1 validator-only defer-parser
 NXT agentc patch-validator; agenta test; agentb note
 FINAL:
 Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
+        "pr_review_change_request": """INTERNAL:
+CLM AgentA c1 req-changes auth-weaken
+OBJ AgentB c1 schedule-risk block-release
+EVD AgentC c1 auth/session.py:142 unsigned-token-accept
+REV AgentD c1 scope restore-sigcheck + add-test
+NXT AgentA AgentC leave-comment+ref; AgentA patch+test
+FINAL:
+Request changes: restore signature verification at auth/session.py:142 and add a regression test.""",
+        "incident_triage_priority_shift": """INTERNAL:
+CLM AgentA c1 plan monitor-latency-30m
+INT AgentB oncall p0 customer-impact-severe rollback-now
+REV AgentC c1 elevate rollback+isolate cache-path
+NXT AgentD AgentA rollback; AgentB status+channel; AgentC metrics+rootcause
+FINAL:
+Treat as P0: roll back now, pause risky deploys, and assign owners for comms and diagnosis.""",
     },
     "sdc_1": {
         "protocol_rule_proposal": """INTERNAL:
@@ -349,6 +419,21 @@ Run narrow first, then broaden to test robustness.""",
 !agentc patch-validator|agenta-test|agentb-note
 FINAL:
 Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
+        "pr_review_change_request": """INTERNAL:
++c1 pr=req-changes
+-c1 risk=schedule-slip
+=c1 ref=auth/session.py:142|unsigned-ok
+~c1 scope=restore-sigcheck|add-test
+!c1 next=comment+patch+test
+FINAL:
+!c1 decision=req-changes""",
+        "incident_triage_priority_shift": """INTERNAL:
++c1 plan=monitor-30m
+@c1 oncall>p0>impact-severe
+~c1 plan=rollback|isolate-cache
+!c1 next=rollback|status|metrics
+FINAL:
+!c1 decision=p0-rollback-now""",
     },
 }
 
@@ -405,6 +490,22 @@ CASES = [
             "(for example, skip risky refactors and ship the minimal safe fix). The team must incorporate the interrupt "
             "without losing state. Required moves: one pre-interrupt plan claim, one interrupt acknowledgment, one "
             "revision to plan scope based on the human input, one explicit next action assignment, and one final recommendation."
+        ),
+    },
+    {
+        "label": "pr_review_change_request",
+        "task": (
+            "Review a pull request that modifies authentication/session handling. Decide whether to approve or request changes. "
+            "Stress reference clarity: include at least one concrete reference (file/module + line or function name) in evidence. "
+            "Required moves: one claim, one objection, one evidence statement with a concrete reference, one revision, one next action assignment, and one final decision."
+        ),
+    },
+    {
+        "label": "incident_triage_priority_shift",
+        "task": (
+            "Triage a production incident. Mid-run, a new external constraint arrives that changes priority (for example, severity escalates or customer impact increases). "
+            "The team must incorporate the shift without losing state. Required moves: one initial plan claim, one acknowledgment of the external shift, one revision to plan scope, "
+            "one explicit next action assignment, and one final recommendation."
         ),
     },
 ]
