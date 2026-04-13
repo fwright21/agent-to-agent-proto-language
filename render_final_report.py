@@ -102,16 +102,25 @@ def _parse_summary_totals(md_text: str) -> Dict[str, ConditionTotals]:
 
     totals: Dict[str, ConditionTotals] = {}
     for r in rows:
-        if r.get("Case") != "TOTAL / AVG":
+        def strip_md(s: str) -> str:
+            s = (s or "").strip()
+            # Remove common markdown wrappers used in these reports.
+            s = s.replace("**", "")
+            s = s.strip("`")
+            return s.strip()
+
+        if strip_md(r.get("Case", "")) != "TOTAL / AVG":
             continue
-        cond = r.get("Condition", "")
+        cond = strip_md(r.get("Condition", ""))
         if not cond:
             continue
 
         def fnum(key: str) -> Optional[float]:
-            raw = (r.get(key) or "").strip()
+            raw = strip_md(r.get(key, ""))
             if not raw:
                 return None
+            if raw.endswith("%"):
+                raw = raw[:-1].strip()
             try:
                 return float(raw)
             except ValueError:
@@ -468,7 +477,7 @@ def render(reports: List[Report], title: str) -> str:
         <h2>Notes</h2>
         <div class="muted">
           Metrics come from the saved markdown reports. “Compliance” is a simple format-adherence check; “Quality” is a lightweight proxy.
-          For full methodology and the debate rounds, see <code>WORKFLOW.md</code> in the repo root.
+          For full methodology and debate artifacts, start with <code>00_project_scope.md</code> and <code>01_linguist_agents.md</code> in the repo root.
         </div>
       </div>
     </div>

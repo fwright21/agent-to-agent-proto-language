@@ -161,5 +161,7 @@ Exact token counting:
 
 ## Full writeup
 
-For the detailed walkthrough, debates, protocol specs, reproduction, and discussion:
-- `WORKFLOW.md`
+If you want the deeper dive:
+- Protocol specs + personas: `01_linguist_agents.md`, `02_message_types.md`, `03_protocol_examples.md`
+- Benchmark suite + cases: `10_benchmark_suite.md`, `11_benchmark_cases.md`
+- Round artifacts: `round_04_linguistic_revision_2026-04-08/`, `round_05_proto_language_and_dense_code_2026-04-08/`
