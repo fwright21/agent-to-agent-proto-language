@@ -1,133 +1,110 @@
-# Agent-to-Agent Compressed Communication / Proto-Language
+# Agent-to-Agent Compressed Communication (Protocol + Benchmark)
 
-## Goal
+This repo is a small research/engineering project about **making multi-agent coordination cheaper**.
+The target is not “shorter answers to humans”. The target is **shorter INTERNAL agent-to-agent conversation** while keeping coordination reliable (claims, objections, evidence, revisions, next actions) and keeping the human-facing output readable.
 
-This project asks:
-- how do we make agents communicate with each other more cheaply during collaboration?
-
-The core hypothesis is that agent-to-agent communication does not need full natural-language English. It may be possible to replace ordinary internal discussion with a compact, structured coordination protocol that preserves reliability while reducing token cost.
-
-## Working idea
-
-Human-facing answers need readability.
-
-Agent-facing messages need:
-- clear state transfer
-- compact disagreement
-- evidence references
-- explicit next actions
-- low ambiguity
-
-That suggests a controlled protocol may outperform freeform English in multi-agent settings.
-
-## What this project will test
-
-The benchmark should compare at least two coordination styles:
-
-1. Plain-English internal discussion
-   - agents talk to each other normally
-   - no compression protocol
-
-2. Compressed coordination protocol
-   - agents use a constrained message format
-   - small vocabulary
-   - fixed fields
-   - controlled English rather than free prose
-
-Optional later comparison:
-
-3. Compressed coordination protocol + compressed final answer prompt
-   - use the best output-compression method from the first project
-   - likely `Minimal Semantic Compression (Round 3)`
-
-## Recommended benchmark shape
-
-Primary benchmark:
-- same task
-- same agents
-- same number of turns
-- compare internal communication cost between:
-  - normal English coordination
-  - compressed protocol coordination
-
-Measure:
-- internal message word count / token count
-- final answer quality
-- protocol compliance rate
-- repair / clarification overhead
-- total end-to-end cost
-
-This means the first benchmark here should probably **not** be “normal prompt vs Round 3 prompt” alone.
-
-That comparison is still useful, but it belongs to user-facing output compression.
-
-For this project, the more direct comparison is:
-- normal internal agent communication
-- compressed internal agent communication
-
-## Initial protocol direction
-
-Start with controlled English, not a fully symbolic language.
-
-Current protocol names:
-- `RCCE-1` = `Relevance-Core Coordination English`
-- `ATRCE-2` = `Act-Typed Relevance Coordination English`
-
-Methodology:
-- Protocol design is grounded in relevance-theoretic compression: preserve information needed for recoverability, remove low-value overhead.
-- Protocol revisions are grounded in speech-act clarity: separate communicative acts so agents do not infer intent from ambiguous message forms.
-
-## Debate system
-
-This project uses a linguist-panel debate loop to generate and refine protocol candidates.
-
-Process:
-- a panel proposes competing protocol changes using linguistic arguments
-- cross-critique identifies ambiguity, inferential load, and recoverability risks
-- a synthesis pass produces a candidate protocol revision
-- benchmark runs adjudicate the candidate against baselines
-
-The benchmark is the decision layer; debate is the ideation layer.
-
-Example:
+Every benchmark run forces this shape:
 
 ```text
-CLAIM: drop framing
-EVID: q2,q3 shorter
-OBJ: q1 factual loss
-FIX: one-word rule for atomic facts
-CONF: medium
-NEXT: rerun benchmark
+INTERNAL:
+(agent coordination transcript — measured + compressed)
+FINAL:
+(human-facing recommendation — kept readable)
 ```
 
-Why this direction:
-- cheaper than prose
-- still inspectable by humans
-- easier to validate
-- easier to translate back into plain English
+## Why this exists (one paragraph)
 
-## Risks
+Multi-agent workflows often spend a large share of tokens on coordination overhead: repeating context, hedging, politeness, and implicit/ambiguous disagreements that trigger repair turns.
+This project tests whether a **coordination protocol** (a constrained language for internal moves) can cut INTERNAL tokens without collapsing reliability.
 
-- protocol becomes too cryptic and loses reliability
-- agents fail to follow it consistently
-- repair traffic erases the savings
-- debugging becomes harder than the cost win is worth
+## Methodology (linguistics → spec → benchmark)
 
-## Safeguards
+Protocol candidates are generated with a “linguist panel” debate loop, then adjudicated by benchmarks:
 
-- tiny vocabulary
-- fixed message types
-- required fields
-- validator for structure
-- plain-English fallback such as `ESCALATE` or `UNSURE`
-- benchmark both compression and adherence
+1) Debate (ideation): personas argue about **recoverability**, **inferential load**, and **speech acts** (e.g., “interrupt” vs “ask”).  
+2) Spec (formalization): the winning idea becomes a concrete protocol (syntax + allowed acts).  
+3) Benchmark (decision): run the same task suite under each protocol and measure:
+   - INTERNAL token cost
+   - compliance (format adherence)
+   - repair turns (ASK/ESC patterns)
+   - final quality (simple proxy)
 
-## Suggested next files to create
+## Protocols tested (including “unsuccessful” directions)
 
-- `00_project_scope.md`
-- `01_agent_protocol_hypothesis.md`
-- `02_message_types.md`
-- `03_protocol_examples.md`
-- `04_benchmark_plan.md`
-- `05_failure_modes.md`
-- `run_tests.py` adapted for protocol benchmarking
+Baseline:
+- `plain_english`: readable internal chat, no protocol.
+
+Typed schemas (readable + easy to validate, but label overhead can be expensive):
+- `RCCE-1`: Relevance-Core Coordination English (`TYPE: field=value; ...`)
+- `ATRCE-2`: RCCE-1 + explicit `INTERRUPT` act + stricter usage rules
+
+Proto-language (best current savings/tradeoff candidate):
+- `PCL-1`: act codes + positional args (`ACT ARG ARG ...`) to remove label overhead while keeping coordination functions
+
+Semantically dense code (token-minimizer, quality risk):
+- `SDC-1`: operator-prefixed code (`+c1 ...`, `-c1 ...`), cheapest but can become too cryptic
+
+## What happened in each round (high level)
+
+Round 4 (typed schema track):
+- Goal: make coordination moves explicit and validator-friendly.
+- Key finding: typed fields can be **more expensive than plain English** for short messages; label overhead is real.
+- Key improvement: introducing explicit **speech acts** (especially interrupts) reduces ambiguity-driven repair.
+
+Round 5 (compression frontier):
+- Proto-language track (PCL-1): remove repeated field labels while keeping act structure.
+- Dense code track (SDC-1): push compression further; observed quality drop in strict runs.
+
+## Results (numbers worth quoting)
+
+From saved strict exact-count runs (tokenizer-native counting for OpenAI models):
+- PCL-1 substantially reduces INTERNAL tokens vs plain English, while remaining mostly compliant.
+- SDC-1 is cheapest on tokens, but quality can drop.
+
+For the exact runs + tables, open:
+- `dashboard_trusted.html` (only openai_exact runs)
+- `combined_round4_round5_dashboard.html` (Round 4 vs Round 5 side-by-side)
+
+## Runners / “models tested”
+
+The harness supports:
+- `--runner local`: deterministic stored samples (no network; sanity check)
+- `--runner codex`: live run via `codex exec`
+- `--runner claude`: live run via `claude -p`
+
+Exact token counting:
+- `--count-mode openai_exact` uses `tiktoken` when installed (see `requirements.txt`; requires Python >= 3.8).
+- If `tiktoken` is unavailable, the harness falls back to an explicit heuristic estimate (still useful for relative comparisons, but not billable tokens).
+
+## How to run
+
+Sanity check (no model calls; uses stored local outputs):
+
+```bash
+python run_tests.py --runner local --output test_results.md
+```
+
+Live run (Codex):
+
+```bash
+python run_tests.py --runner codex --repeats 3 --count-mode auto --output test_results.md
+```
+
+Render an HTML report from a markdown report:
+
+```bash
+python render_benchmark_html.py test_results.md benchmark_report.html
+```
+
+Regenerate the repo’s main dashboards:
+
+```bash
+bash scripts/regenerate_dashboards.sh
+```
+
+This repo checks in a small set of “shareable” HTML outputs (trusted + combined). Larger/historical dashboards are regenerated locally.
+
+## Full writeup
+
+For the detailed “GitHub-level” walkthrough (debates, linguists, protocol specs, exact reproduction, and discussion), see:
+- `WORKFLOW.md`

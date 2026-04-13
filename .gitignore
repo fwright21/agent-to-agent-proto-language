@@ -1,10 +1,10 @@
 
-# Local handoff notes (do not commit)
-*handoff*.md
-*_handoff_*.md
-*handoff_and_git_prep.md
-
 # Local environment files
 .DS_Store
 .venv/
 __pycache__/
+.codex_tmp/
+
+# Generated HTML (regenerate; not required for repo)
+dashboard_historical.html
+benchmark_report_round5_codex_strict.html

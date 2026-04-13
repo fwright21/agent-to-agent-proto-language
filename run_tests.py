@@ -13,11 +13,16 @@ Requires: selected CLI available and logged in.
 import argparse
 import datetime
 import math
+import os
 import re
 import subprocess
-import tempfile
-from typing import Tuple
+from typing import List, Tuple
 from pathlib import Path
+
+try:
+    import tiktoken
+except ImportError:  # pragma: no cover - optional dependency
+    tiktoken = None
 
 CONDITIONS = {
     "plain_english": (
@@ -25,17 +30,55 @@ CONDITIONS = {
         "should speak in normal readable prose. Avoid fluff, but do not use the compressed protocol schema."
     ),
     "rcce_1": (
-        "Simulate a 4-agent coordination exchange using Relevance-Core Coordination English (RCCE-1) only. Each "
-        "internal message must be exactly one line in this schema: TYPE: field=value; field=value. Allowed "
-        "types: CLAIM, EVID, OBJ, REV, ASK, CONF, NEXT, ESCALATE. One message, one purpose. Use ESCALATE "
-        "instead of free prose when the protocol cannot safely express a message."
+        "Simulate a 4-agent coordination exchange using Relevance-Core Coordination English (RCCE-1) only.\n"
+        "Each internal message must be exactly one line: TYPE: field=value; field=value\n"
+        "Allowed types and REQUIRED fields (use these exact field names):\n"
+        "- CLAIM: id, topic, content\n"
+        "- EVID: target, source, content\n"
+        "- OBJ: target, reason, content\n"
+        "- REV: target, change, content\n"
+        "- ASK: target, need\n"
+        "- CONF: target, level (one of low|medium|high)\n"
+        "- NEXT: owner, action\n"
+        "- ESCALATE: reason (optional: target)\n"
+        "Rules: one message per line; no extra fields; no agent names; no prose outside this schema. Use ESCALATE instead of free prose when the schema cannot safely express meaning."
     ),
     "atrce_2": (
-        "Simulate a 4-agent coordination exchange using Act-Typed Relevance Coordination English (ATRCE-2) only. Each "
-        "internal message must be exactly one line in this schema: TYPE: field=value; field=value. Allowed "
-        "types: CLAIM, EVID, OBJ, REV, ASK, CONF, NEXT, ESCALATE, INTERRUPT. One message, one purpose. Use "
-        "ASK only for missing information. Use INTERRUPT for external priority/directive shifts. Use ESCALATE "
-        "instead of free prose when the protocol cannot safely express a message."
+        "Simulate a 4-agent coordination exchange using Act-Typed Relevance Coordination English (ATRCE-2) only.\n"
+        "Each internal message must be exactly one line: TYPE: field=value; field=value\n"
+        "Allowed types and REQUIRED fields (use these exact field names):\n"
+        "- CLAIM: id, topic, content\n"
+        "- EVID: target, source, content\n"
+        "- OBJ: target, reason, content\n"
+        "- REV: target, change, content\n"
+        "- ASK: target, need\n"
+        "- CONF: target, level (one of low|medium|high)\n"
+        "- NEXT: owner, action\n"
+        "- ESCALATE: reason (optional: target)\n"
+        "- INTERRUPT: source, priority, directive\n"
+        "Rules: one message per line; no extra fields; no agent names; no prose outside this schema. Use ASK only for missing information. Use INTERRUPT only for external priority/directive shifts. Use ESCALATE instead of free prose when the schema cannot safely express meaning."
+    ),
+    "pcl_1": (
+        "Simulate a 4-agent coordination exchange using Proto Coordination Language (PCL-1) only.\n"
+        "Each INTERNAL message must be exactly one line in this schema: ACT ARG ARG ...\n"
+        "Allowed acts: CLM, OBJ, EVD, REV, ASK, CNF, NXT, ESC, INT.\n"
+        "Hard constraint: each INTERNAL line MUST start with the ACT token (no leading agent prefix like 'AgentA:').\n"
+        "If you want to indicate which agent spoke, put the agent id as the first ARG after the ACT (e.g., 'CLM AgentA ...').\n"
+        "Minimum args per act (not counting the ACT token): CLM>=3, OBJ>=3, EVD>=3, REV>=3, ASK>=2, CNF>=2, NXT>=2, ESC>=2, INT>=3.\n"
+        "Practical rule: CLM and REV must include (speaker, topic-or-id, payload), not just (speaker, payload).\n"
+        "Example: 'CLM AgentA claim1 comp_all+30%' and 'REV AgentA claim1 comp_all+12%'.\n"
+        "Meaning should live in compact atoms and word order rather than field labels or full English clauses.\n"
+        "Keep atoms short, compositional, and reusable.\n"
+        "Use 'ESC TARGET REASON' when nuance cannot be safely compressed.\n"
+        "Self-check: before printing, verify (1) every INTERNAL line starts with an allowed act and (2) every line meets the minimum arg count for its act; if any fail, rewrite INTERNAL only."
+    ),
+    "sdc_1": (
+        "Simulate a 4-agent coordination exchange using Semantically Dense Code (SDC-1) only. Each internal message "
+        "must be exactly one line in this schema: OPREF PAYLOAD.\n"
+        "OPREF MUST have no spaces and must look like one of: +c1, -c1, =c1, ~c1, ?c1, ^c1, !c1, /c1, @c1.\n"
+        "Allowed operators: + claim, - objection, = evidence, ~ revision, ? ask, ^ confidence, ! next, / escape, @ interrupt.\n"
+        "Make payloads compact and compositional using short ASCII chunks such as x>y, x->y, and a|b. Avoid prose.\n"
+        "Use /cX REASON when compression would hide essential nuance."
     ),
 }
 
@@ -43,6 +86,8 @@ CONDITION_DISPLAY = {
     "plain_english": "plain_english",
     "rcce_1": "RCCE-1",
     "atrce_2": "ATRCE-2",
+    "pcl_1": "PCL-1",
+    "sdc_1": "SDC-1",
 }
 
 LOCAL_SAMPLES = {
@@ -201,6 +246,110 @@ NEXT: owner=agentc; action=prepare validator patch while agenta adds regression 
 FINAL:
 Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
     },
+    "pcl_1": {
+        "protocol_rule_proposal": """INTERNAL:
+CLM c1 conf-tag need
+OBJ c1 all-tag ovh
+EVD c1 notes tag-when-needed
+REV c1 tag only-uncertain/disputed
+FINAL:
+Use confidence tags only for uncertain or disputed claims.""",
+        "missing_evidence_repair": """INTERNAL:
+CLM c1 small-schema boost-reliability
+ASK c1 evidence
+EVD c1 notes short-schema validate-easier
+CNF c1 med
+NXT judge keep-c1 narrow-scope
+FINAL:
+Keep the claim, but limit it to validation-sensitive benchmark tasks.""",
+        "fallback_trigger": """INTERNAL:
+CLM c1 proto default
+OBJ c1 nuance loss-risk
+ESC c1 nuance-heavy
+REV c1 plain-if nuance-loss
+FINAL:
+Use the protocol by default, but fall back to plain language when nuance would be lost.""",
+        "benchmark_scope_decision": """INTERNAL:
+CLM c1 scope narrow-first
+OBJ c1 realism under-test
+EVD c1 scope clean-baseline-first
+REV c1 expand after-baseline
+FINAL:
+Start with a narrow benchmark, then expand after baseline stability.""",
+        "reference_clarity": """INTERNAL:
+CLM c1 explicit-ref cut-repair
+OBJ c1 always-ref add-cost
+EVD c1 design targeted-ref repair-easier
+REV c1 ref only-change/dispute
+FINAL:
+Require explicit references only when claims change or are disputed.""",
+        "scope_expansion": """INTERNAL:
+CLM c1 pass1 narrow-first
+OBJ c1 narrow-only hide-failures
+EVD c1 scope broad-cases stress-repair
+REV c1 broaden after-baseline
+FINAL:
+Run narrow first, then broaden to test robustness.""",
+        "human_interrupt_during_execution": """INTERNAL:
+CLM c1 ship parser+validator-refactor
+INT human safety-now min-safe-fix
+REV c1 validator-only defer-parser
+NXT agentc patch-validator; agenta test; agentb note
+FINAL:
+Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
+    },
+    "sdc_1": {
+        "protocol_rule_proposal": """INTERNAL:
++c1 conf.tag=req
+-c1 ovh>all-line
+=c1 notes>tag-if-needed
+~c1 tag@uncertain|disputed
+FINAL:
+Use confidence tags only for uncertain or disputed claims.""",
+        "missing_evidence_repair": """INTERNAL:
++c1 small-schema>reliable
+?c1 evidence
+=c1 notes>short-schema>validates
+^c1 med
+!judge keep.c1@narrow-scope
+FINAL:
+Keep the claim, but limit it to validation-sensitive benchmark tasks.""",
+        "fallback_trigger": """INTERNAL:
++c1 proto=default
+-c1 nuance>loss
+/c1 nuance-heavy
+~c1 plain@if-loss
+FINAL:
+Use the protocol by default, but fall back to plain language when nuance would be lost.""",
+        "benchmark_scope_decision": """INTERNAL:
++c1 scope=narrow-first
+-c1 realism<coverage
+=c1 baseline>clean-compare
+~c1 narrow->expand
+FINAL:
+Start with a narrow benchmark, then expand after baseline stability.""",
+        "reference_clarity": """INTERNAL:
++c1 ref=explicit-on-change
+-c1 all-ref>cost
+=c1 targeted-ref>repair-easier
+~c1 ref@change|dispute
+FINAL:
+Require explicit references only when claims change or are disputed.""",
+        "scope_expansion": """INTERNAL:
++c1 pass1=narrow
+-c1 narrow-only>miss-failure
+=c1 broad-cases>stress-repair
+~c1 baseline->broaden
+FINAL:
+Run narrow first, then broaden to test robustness.""",
+        "human_interrupt_during_execution": """INTERNAL:
++c1 ship=parser+validator-refactor
+@c1 human>safety-now>min-fix
+~c1 validator-only.defer-parser
+!agentc patch-validator|agenta-test|agentb-note
+FINAL:
+Ship a minimal safe validator fix now, defer risky refactors, and include regression coverage.""",
+    },
 }
 
 CASES = [
@@ -272,6 +421,20 @@ ALLOWED_TYPES = {
     "INTERRUPT": {"source", "priority", "directive"},
 }
 
+PCL_ACTS = {
+    "CLM": 3,
+    "OBJ": 3,
+    "EVD": 3,
+    "REV": 3,
+    "ASK": 2,
+    "CNF": 2,
+    "NXT": 2,
+    "ESC": 2,
+    "INT": 3,
+}
+
+SDC_OPERATORS = {"+", "-", "=", "~", "?", "^", "!", "/", "@"}
+
 INSTRUCTION_TEMPLATE = """You are running a benchmark simulation.
 Do not inspect files.
 Do not use tools.
@@ -299,9 +462,13 @@ FINAL:
 """
 
 
-def run_claude_query(prompt: str, timeout: int) -> str:
+def run_claude_query(prompt: str, timeout: int, model: str) -> str:
+    cmd = ["claude", "-p"]
+    if model:
+        cmd.extend(["--model", model])
+    cmd.append(prompt)
     result = subprocess.run(
-        ["claude", "-p", prompt],
+        cmd,
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -310,24 +477,29 @@ def run_claude_query(prompt: str, timeout: int) -> str:
     return result.stdout.strip()
 
 
-def run_codex_query(prompt: str, timeout: int) -> str:
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        output_path = Path(tmp.name)
+def run_codex_query(prompt: str, timeout: int, model: str) -> str:
+    tmp_dir = Path(".codex_tmp")
+    tmp_dir.mkdir(exist_ok=True)
+    output_path = tmp_dir / f"codex_last_message_{os.getpid()}_{datetime.datetime.now().timestamp():.0f}.txt"
+    output_path = Path(str(output_path).replace(" ", "_"))
 
     try:
+        cmd = [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--color",
+            "never",
+            "--output-last-message",
+            str(output_path),
+        ]
+        if model:
+            cmd.extend(["-m", model])
+        cmd.append(prompt)
         subprocess.run(
-            [
-                "codex",
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "--color",
-                "never",
-                "--output-last-message",
-                str(output_path),
-                prompt,
-            ],
+            cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -350,11 +522,11 @@ def run_codex_query(prompt: str, timeout: int) -> str:
             pass
 
 
-def run_query(runner: str, prompt: str, timeout: int) -> str:
+def run_query(runner: str, prompt: str, timeout: int, *, codex_model: str, claude_model: str) -> str:
     if runner == "claude":
-        return run_claude_query(prompt, timeout)
+        return run_claude_query(prompt, timeout, claude_model)
     if runner == "codex":
-        return run_codex_query(prompt, timeout)
+        return run_codex_query(prompt, timeout, codex_model)
     if runner == "local":
         for condition_name, condition_prompt in CONDITIONS.items():
             if condition_prompt in prompt:
@@ -386,10 +558,21 @@ def word_count(text: str) -> int:
     return len(text.split())
 
 
+def heuristic_token_pieces(text: str) -> List[str]:
+    return re.findall(r"[A-Za-z0-9]+(?:[-_/][A-Za-z0-9]+)*|[^\sA-Za-z0-9]", text)
+
+
 def estimated_token_count(text: str) -> int:
-    # Approximate Claude-style token counts from plain text using a simple
-    # word-to-token ratio. This is a benchmark proxy, not true tokenizer output.
-    return max(1, int(math.ceil(word_count(text) * 1.33)))
+    # Symbol-aware fallback estimate. This treats compact code-like forms more
+    # fairly than whitespace-only word counting while remaining model-neutral.
+    return max(1, len(heuristic_token_pieces(text)))
+
+
+def openai_exact_token_count(text: str, encoding_name: str) -> int:
+    if tiktoken is None:
+        raise RuntimeError("tiktoken is not installed")
+    encoding = tiktoken.get_encoding(encoding_name)
+    return len(encoding.encode(text))
 
 
 def count_nonempty_lines(text: str) -> int:
@@ -419,18 +602,55 @@ def protocol_line_valid(line: str) -> bool:
     return ALLOWED_TYPES[msg_type].issubset(fields.keys())
 
 
-def protocol_compliance(text: str) -> float:
+def pcl_line_valid(line: str) -> bool:
+    parts = line.strip().split()
+    if not parts:
+        return False
+    act = parts[0]
+    required_args = PCL_ACTS.get(act)
+    if required_args is None:
+        return False
+    return len(parts[1:]) >= required_args
+
+
+def sdc_line_valid(line: str) -> bool:
+    parts = line.strip().split(maxsplit=1)
+    if not parts:
+        return False
+    head = parts[0]
+    if head[0] not in SDC_OPERATORS or len(head) < 2:
+        return False
+    return len(parts) == 2 and bool(parts[1].strip())
+
+
+def compliance_rate(text: str, line_validator) -> float:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return 0.0
-    valid = sum(1 for line in lines if protocol_line_valid(line))
+    valid = sum(1 for line in lines if line_validator(line))
     return round(valid / len(lines) * 100, 1)
+
+
+def protocol_compliance(text: str) -> float:
+    return compliance_rate(text, protocol_line_valid)
+
+
+def pcl_compliance(text: str) -> float:
+    return compliance_rate(text, pcl_line_valid)
+
+
+def sdc_compliance(text: str) -> float:
+    return compliance_rate(text, sdc_line_valid)
 
 
 def repair_turns(condition: str, text: str) -> int:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if condition == "rcce_1":
+    if condition in {"rcce_1", "atrce_2"}:
         return sum(1 for line in lines if line.startswith("ASK:") or line.startswith("ESCALATE:"))
+    if condition == "pcl_1":
+        return sum(1 for line in lines if line.startswith("ASK ") or line.startswith("ESC "))
+    if condition == "sdc_1":
+        return sum(1 for line in lines if line.startswith("?") or line.startswith("/"))
     return sum(
         1
         for line in lines
@@ -470,7 +690,30 @@ def parse_args():
     parser.add_argument("--output", default="test_results.md")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--conditions",
+        default="",
+        help="Comma-separated condition keys to run (default: all). Example: plain_english,rcce_1,atrce_2",
+    )
+    parser.add_argument(
+        "--cases",
+        default="",
+        help="Comma-separated case labels to run (default: all). Example: protocol_rule_proposal,benchmark_scope_decision",
+    )
     parser.add_argument("--baseline", default="plain_english")
+    parser.add_argument("--codex-model", default="", help="Model id for `codex exec -m`.")
+    parser.add_argument("--claude-model", default="", help="Model id for `claude --model`.")
+    parser.add_argument(
+        "--count-mode",
+        choices=["auto", "estimate", "openai_exact"],
+        default="auto",
+        help="Token counting mode. auto uses OpenAI exact counting for codex when tiktoken is installed; otherwise estimate.",
+    )
+    parser.add_argument(
+        "--openai-encoding",
+        default="o200k_base",
+        help="tiktoken encoding to use for openai_exact counting.",
+    )
     return parser.parse_args()
 
 
@@ -482,22 +725,86 @@ def display_condition(condition_name: str) -> str:
     return CONDITION_DISPLAY.get(condition_name, condition_name)
 
 
+def resolve_count_mode(requested_mode: str, runner: str) -> str:
+    if requested_mode == "auto":
+        if runner == "codex" and tiktoken is not None:
+            return "openai_exact"
+        return "estimate"
+    if requested_mode == "openai_exact" and tiktoken is None:
+        pyver = ".".join(str(x) for x in __import__("sys").version_info[:3])
+        print(
+            "Warning: exact counting requested but `tiktoken` is unavailable; falling back to estimate count mode.\n"
+            f"  Python: {pyver}\n"
+            "  Fix: install deps (see `requirements.txt`) in a Python >= 3.8 environment."
+        )
+        return "estimate"
+    return requested_mode
+
+
+def count_internal_tokens(text: str, count_mode: str, openai_encoding: str) -> int:
+    if count_mode == "openai_exact":
+        return openai_exact_token_count(text, openai_encoding)
+    return estimated_token_count(text)
+
+
+def compliance_for_condition(condition_name: str, internal_text: str) -> float:
+    if condition_name == "plain_english":
+        return 100.0
+    if condition_name in {"rcce_1", "atrce_2"}:
+        return protocol_compliance(internal_text)
+    if condition_name == "pcl_1":
+        return pcl_compliance(internal_text)
+    if condition_name == "sdc_1":
+        return sdc_compliance(internal_text)
+    raise ValueError(f"Unsupported condition: {condition_name}")
+
+
 def main():
     args = parse_args()
     if args.repeats < 1:
         raise ValueError("--repeats must be at least 1")
+
+    if args.conditions.strip():
+        requested = [c.strip() for c in args.conditions.split(",") if c.strip()]
+        unknown = [c for c in requested if c not in CONDITIONS]
+        if unknown:
+            raise ValueError(f"Unknown --conditions: {', '.join(unknown)}")
+        conditions_to_run = requested
+    else:
+        conditions_to_run = list(CONDITIONS.keys())
+
+    if args.cases.strip():
+        requested_cases = [c.strip() for c in args.cases.split(",") if c.strip()]
+        known = {c["label"] for c in CASES}
+        unknown_cases = [c for c in requested_cases if c not in known]
+        if unknown_cases:
+            raise ValueError(f"Unknown --cases: {', '.join(unknown_cases)}")
+        cases_to_run = [c for c in CASES if c["label"] in set(requested_cases)]
+    else:
+        cases_to_run = CASES
+
     if args.baseline not in CONDITIONS:
         raise ValueError(f"--baseline must be one of: {', '.join(CONDITIONS)}")
+    if args.baseline not in conditions_to_run:
+        raise ValueError(f"Baseline '{args.baseline}' must be included in --conditions")
+
+    count_mode = resolve_count_mode(args.count_mode, args.runner)
 
     results = {}
     print(f"Runner: {args.runner}")
+    print(f"Count mode: {count_mode}")
+    if args.runner == "codex" and args.codex_model:
+        print(f"Codex model: {args.codex_model}")
+    if args.runner == "claude" and args.claude_model:
+        print(f"Claude model: {args.claude_model}")
     print(f"Repeats: {args.repeats}")
     print(f"Baseline: {args.baseline}")
 
-    for condition_name, condition_prompt in CONDITIONS.items():
+    for condition_name in conditions_to_run:
+        condition_prompt = CONDITIONS[condition_name]
         results[condition_name] = {}
         print(f"\nRunning: {condition_name}")
-        for case in CASES:
+        for case in cases_to_run:
             prompt = build_prompt(condition_prompt, case["task"])
             internal_token_runs = []
             line_runs = []
@@ -510,14 +817,20 @@ def main():
 
             print(f"  {case['label']}... ", end="", flush=True)
             for _ in range(args.repeats):
-                text = run_query(args.runner, prompt, args.timeout)
+                text = run_query(
+                    args.runner,
+                    prompt,
+                    args.timeout,
+                    codex_model=args.codex_model,
+                    claude_model=args.claude_model,
+                )
                 internal_text, final_text = parse_output(text)
                 raw_texts.append(text)
                 parsed_internal.append(internal_text)
                 parsed_finals.append(final_text)
-                internal_token_runs.append(estimated_token_count(internal_text))
+                internal_token_runs.append(count_internal_tokens(internal_text, count_mode, args.openai_encoding))
                 line_runs.append(count_nonempty_lines(internal_text))
-                compliance_runs.append(protocol_compliance(internal_text) if is_protocol_condition(condition_name) else 100.0)
+                compliance_runs.append(compliance_for_condition(condition_name, internal_text))
                 repair_runs.append(repair_turns(condition_name, internal_text))
                 final_quality_runs.append(final_quality(final_text))
 
@@ -541,17 +854,22 @@ def main():
     lines.append("# Coordination Benchmark Results\n")
     lines.append(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
     lines.append(f"Runner: `{args.runner}`\n")
+    lines.append(f"Count mode: `{count_mode}`\n")
+    if args.runner == "codex" and args.codex_model:
+        lines.append(f"Codex model: `{args.codex_model}`\n")
+    if args.runner == "claude" and args.claude_model:
+        lines.append(f"Claude model: `{args.claude_model}`\n")
     lines.append(f"Repeats per condition/case: `{args.repeats}`\n")
     lines.append(f"Baseline: `{args.baseline}`\n")
-    lines.append(f"Conditions: {', '.join(f'`{display_condition(name)}`' for name in CONDITIONS)}\n")
+    lines.append(f"Conditions: {', '.join(f'`{display_condition(name)}`' for name in conditions_to_run)}\n")
 
     lines.append("## Per-Case Results\n")
-    for case in CASES:
+    for case in cases_to_run:
         label = case["label"]
         lines.append(f"### {label}\n")
         lines.append(f"Task: _{case['task']}_\n")
         baseline_cost = results[args.baseline][label]["internal_tokens"]
-        for condition_name in CONDITIONS:
+        for condition_name in conditions_to_run:
             result = results[condition_name][label]
             delta = None if condition_name == args.baseline else percent_delta(baseline_cost, result["internal_tokens"])
             delta_text = (
@@ -578,10 +896,13 @@ def main():
     lines.append("| Case | Condition | Internal Tokens | Compliance | Repair Turns | Final Quality |")
     lines.append("|---|---|---:|---:|---:|---:|")
 
-    totals = {name: {"internal_tokens": 0.0, "compliance": 0.0, "repair_turns": 0.0, "final_quality": 0.0} for name in CONDITIONS}
-    for case in CASES:
+    totals = {
+        name: {"internal_tokens": 0.0, "compliance": 0.0, "repair_turns": 0.0, "final_quality": 0.0}
+        for name in conditions_to_run
+    }
+    for case in cases_to_run:
         label = case["label"]
-        for condition_name in CONDITIONS:
+        for condition_name in conditions_to_run:
             result = results[condition_name][label]
             lines.append(
                 f"| {label} | {display_condition(condition_name)} | {format_num(result['internal_tokens'])} | "
@@ -590,17 +911,18 @@ def main():
             for metric in totals[condition_name]:
                 totals[condition_name][metric] += result[metric]
 
-    for condition_name in CONDITIONS:
+    suite_len = len(cases_to_run) if cases_to_run else 1
+    for condition_name in conditions_to_run:
         lines.append("| **TOTAL / AVG** | "
                      f"{display_condition(condition_name)} | "
                      f"**{format_num(totals[condition_name]['internal_tokens'])}** | "
-                     f"**{format_num(totals[condition_name]['compliance'] / len(CASES))}%** | "
-                     f"**{format_num(totals[condition_name]['repair_turns'] / len(CASES))}** | "
-                     f"**{format_num(totals[condition_name]['final_quality'] / len(CASES))}** |")
+                     f"**{format_num(totals[condition_name]['compliance'] / suite_len)}%** | "
+                     f"**{format_num(totals[condition_name]['repair_turns'] / suite_len)}** | "
+                     f"**{format_num(totals[condition_name]['final_quality'] / suite_len)}** |")
 
     lines.append("\n## Verdict\n")
     baseline_total = totals[args.baseline]["internal_tokens"]
-    for condition_name in CONDITIONS:
+    for condition_name in conditions_to_run:
         if condition_name == args.baseline:
             continue
         delta = percent_delta(baseline_total, totals[condition_name]["internal_tokens"])
@@ -609,34 +931,38 @@ def main():
             f"`{display_condition(condition_name)}` reduced average internal coordination token cost by {delta:.1f}% vs `{display_condition(args.baseline)}`."
         )
         lines.append(
-            f"Average compliance: {format_num(totals[condition_name]['compliance'] / len(CASES))}%; "
-            f"average repair turns: {format_num(totals[condition_name]['repair_turns'] / len(CASES))}; "
-            f"average final quality: {format_num(totals[condition_name]['final_quality'] / len(CASES))}."
+            f"Average compliance: {format_num(totals[condition_name]['compliance'] / suite_len)}%; "
+            f"average repair turns: {format_num(totals[condition_name]['repair_turns'] / suite_len)}; "
+            f"average final quality: {format_num(totals[condition_name]['final_quality'] / suite_len)}."
         )
         lines.append(
-            f"Average savings per {len(CASES)}-case suite: {format_num(savings)} internal tokens."
+            f"Average savings per {suite_len}-case suite: {format_num(savings)} internal tokens."
         )
         lines.append(
             f"Scale-up estimate: {format_num(scale_value(savings, 10))} tokens saved across 10 suites, "
             f"{format_num(scale_value(savings, 100))} across 100 suites, "
             f"{format_num(scale_value(savings, 1000))} across 1000 suites."
         )
-        lines.append(
-            f"Claude Sonnet 4 output-cost guideline: about ${savings * 15 / 1000000:.6f} saved per {len(CASES)}-case suite, "
-            f"using $15 per million output tokens."
-        )
+        if count_mode == "openai_exact":
+            lines.append(
+                "These counts use the configured OpenAI tokenizer directly; apply model-specific pricing separately if needed."
+            )
+        else:
+            lines.append(
+                "These counts are heuristic estimates for comparison, not billable API usage."
+            )
 
     output = "\n".join(lines)
     with open(args.output, "w") as handle:
         handle.write(output)
 
     print(f"\nResults written to {args.output}")
-    for condition_name in CONDITIONS:
+    for condition_name in conditions_to_run:
         print(
             f"{condition_name}: total internal tokens {format_num(totals[condition_name]['internal_tokens'])}, "
-            f"avg compliance {format_num(totals[condition_name]['compliance'] / len(CASES))}%, "
-            f"avg repair {format_num(totals[condition_name]['repair_turns'] / len(CASES))}, "
-            f"avg final quality {format_num(totals[condition_name]['final_quality'] / len(CASES))}"
+            f"avg compliance {format_num(totals[condition_name]['compliance'] / suite_len)}%, "
+            f"avg repair {format_num(totals[condition_name]['repair_turns'] / suite_len)}, "
+            f"avg final quality {format_num(totals[condition_name]['final_quality'] / suite_len)}"
         )
 
 
