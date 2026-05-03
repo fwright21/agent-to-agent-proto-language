@@ -568,14 +568,24 @@ def run_claude_query(prompt: str, timeout: int, model: str) -> str:
     if model:
         cmd.extend(["--model", model])
     cmd.append(prompt)
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=True,
+    max_retries = 3
+    for attempt in range(max_retries):
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        if attempt < max_retries - 1:
+            import time
+            wait = 10 * (attempt + 1)
+            print(f"    [retry {attempt + 1}/{max_retries - 1} in {wait}s — stderr: {result.stderr.strip()[:120]}]")
+            time.sleep(wait)
+    raise RuntimeError(
+        f"claude CLI failed after {max_retries} attempts.\nstderr: {result.stderr.strip()}"
     )
-    return result.stdout.strip()
 
 
 def run_codex_query(prompt: str, timeout: int, model: str) -> str:
@@ -771,6 +781,121 @@ def final_quality(final_text: str) -> int:
     return score
 
 
+def write_report(results, completed_conditions, cases_to_run, args, count_mode, output_path, partial=False):
+    lines = []
+    title = "# Coordination Benchmark Results (PARTIAL)\n" if partial else "# Coordination Benchmark Results\n"
+    lines.append(title)
+    lines.append(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+    lines.append(f"Runner: `{args.runner}`\n")
+    lines.append(f"Count mode: `{count_mode}`\n")
+    if args.runner == "codex" and args.codex_model:
+        lines.append(f"Codex model: `{args.codex_model}`\n")
+    if args.runner == "claude" and args.claude_model:
+        lines.append(f"Claude model: `{args.claude_model}`\n")
+    lines.append(f"Repeats per condition/case: `{args.repeats}`\n")
+    lines.append(f"Baseline: `{args.baseline}`\n")
+    lines.append(f"Conditions: {', '.join(f'`{display_condition(name)}`' for name in completed_conditions)}\n")
+    if count_mode == "estimate":
+        lines.append(
+            "> **Note on token counts:** Counts use a heuristic estimator, not a model-native tokenizer. "
+            "Relative savings between conditions within this run are meaningful. "
+            "Absolute numbers are not directly comparable to runs using `openai_exact` counting.\n"
+        )
+
+    lines.append("## Per-Case Results\n")
+    for case in cases_to_run:
+        label = case["label"]
+        lines.append(f"### {label}\n")
+        lines.append(f"Task: _{case['task']}_\n")
+        baseline_cost = results[args.baseline][label]["internal_tokens"]
+        for condition_name in completed_conditions:
+            result = results[condition_name][label]
+            delta = None if condition_name == args.baseline else percent_delta(baseline_cost, result["internal_tokens"])
+            delta_text = (
+                "(baseline)"
+                if delta is None
+                else f"({delta:.1f}% lower internal token cost vs {display_condition(args.baseline)})"
+            )
+            lines.append(
+                f"**{display_condition(condition_name)}**: {format_num(result['internal_tokens'])} avg internal tokens {delta_text}; "
+                f"compliance {format_num(result['compliance'])}%; repair turns {format_num(result['repair_turns'])}; "
+                f"final quality {format_num(result['final_quality'])}"
+            )
+            lines.append(f"Run token counts: `{result['internal_token_runs']}`")
+            lines.append("Internal sample:")
+            lines.append("```text")
+            lines.append(result["sample_internal"])
+            lines.append("```")
+            lines.append("Final sample:")
+            lines.append("```text")
+            lines.append(result["sample_final"])
+            lines.append("```\n")
+
+    lines.append("## Summary Table\n")
+    lines.append("| Case | Condition | Internal Tokens | Compliance | Repair Turns | Final Quality |")
+    lines.append("|---|---|---:|---:|---:|---:|")
+
+    totals = {
+        name: {"internal_tokens": 0.0, "compliance": 0.0, "repair_turns": 0.0, "final_quality": 0.0}
+        for name in completed_conditions
+    }
+    for case in cases_to_run:
+        label = case["label"]
+        for condition_name in completed_conditions:
+            result = results[condition_name][label]
+            lines.append(
+                f"| {label} | {display_condition(condition_name)} | {format_num(result['internal_tokens'])} | "
+                f"{format_num(result['compliance'])}% | {format_num(result['repair_turns'])} | {format_num(result['final_quality'])} |"
+            )
+            for metric in totals[condition_name]:
+                totals[condition_name][metric] += result[metric]
+
+    suite_len = len(cases_to_run) if cases_to_run else 1
+    for condition_name in completed_conditions:
+        lines.append("| **TOTAL / AVG** | "
+                     f"{display_condition(condition_name)} | "
+                     f"**{format_num(totals[condition_name]['internal_tokens'])}** | "
+                     f"**{format_num(totals[condition_name]['compliance'] / suite_len)}%** | "
+                     f"**{format_num(totals[condition_name]['repair_turns'] / suite_len)}** | "
+                     f"**{format_num(totals[condition_name]['final_quality'] / suite_len)}** |")
+
+    if args.baseline in completed_conditions and len(completed_conditions) > 1:
+        lines.append("\n## Verdict\n")
+        baseline_total = totals[args.baseline]["internal_tokens"]
+        for condition_name in completed_conditions:
+            if condition_name == args.baseline:
+                continue
+            delta = percent_delta(baseline_total, totals[condition_name]["internal_tokens"])
+            savings = baseline_total - totals[condition_name]["internal_tokens"]
+            lines.append(
+                f"`{display_condition(condition_name)}` reduced average internal coordination token cost by {delta:.1f}% vs `{display_condition(args.baseline)}`."
+            )
+            lines.append(
+                f"Average compliance: {format_num(totals[condition_name]['compliance'] / suite_len)}%; "
+                f"average repair turns: {format_num(totals[condition_name]['repair_turns'] / suite_len)}; "
+                f"average final quality: {format_num(totals[condition_name]['final_quality'] / suite_len)}."
+            )
+            lines.append(
+                f"Average savings per {suite_len}-case suite: {format_num(savings)} internal tokens."
+            )
+            lines.append(
+                f"Scale-up estimate: {format_num(scale_value(savings, 10))} tokens saved across 10 suites, "
+                f"{format_num(scale_value(savings, 100))} across 100 suites, "
+                f"{format_num(scale_value(savings, 1000))} across 1000 suites."
+            )
+            if count_mode == "openai_exact":
+                lines.append(
+                    "These counts use the configured OpenAI tokenizer directly; apply model-specific pricing separately if needed."
+                )
+            else:
+                lines.append(
+                    "These counts are heuristic estimates for comparison, not billable API usage."
+                )
+
+    with open(output_path, "w") as handle:
+        handle.write("\n".join(lines))
+
+
 def percent_delta(baseline: float, candidate: float) -> float:
     if baseline == 0:
         return 0.0
@@ -901,6 +1026,8 @@ def main():
     print(f"Repeats: {args.repeats}")
     print(f"Baseline: {args.baseline}")
 
+    completed_conditions = []
+    partial_path = args.output.replace(".md", ".partial.md")
     for condition_name in conditions_to_run:
         condition_prompt = CONDITIONS[condition_name]
         results[condition_name] = {}
@@ -950,120 +1077,24 @@ def main():
                 f"{format_num(average(internal_token_runs))} avg internal tokens, "
                 f"{format_num(average(compliance_runs))}% compliance"
             )
+        completed_conditions.append(condition_name)
+        write_report(results, completed_conditions, cases_to_run, args, count_mode, partial_path, partial=True)
+        print(f"  [partial results saved to {partial_path}]")
 
-    lines = []
-    lines.append("# Coordination Benchmark Results\n")
-    lines.append(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-    lines.append(f"Runner: `{args.runner}`\n")
-    lines.append(f"Count mode: `{count_mode}`\n")
-    if args.runner == "codex" and args.codex_model:
-        lines.append(f"Codex model: `{args.codex_model}`\n")
-    if args.runner == "claude" and args.claude_model:
-        lines.append(f"Claude model: `{args.claude_model}`\n")
-    lines.append(f"Repeats per condition/case: `{args.repeats}`\n")
-    lines.append(f"Baseline: `{args.baseline}`\n")
-    lines.append(f"Conditions: {', '.join(f'`{display_condition(name)}`' for name in conditions_to_run)}\n")
-
-    lines.append("## Per-Case Results\n")
-    for case in cases_to_run:
-        label = case["label"]
-        lines.append(f"### {label}\n")
-        lines.append(f"Task: _{case['task']}_\n")
-        baseline_cost = results[args.baseline][label]["internal_tokens"]
-        for condition_name in conditions_to_run:
-            result = results[condition_name][label]
-            delta = None if condition_name == args.baseline else percent_delta(baseline_cost, result["internal_tokens"])
-            delta_text = (
-                "(baseline)"
-                if delta is None
-                else f"({delta:.1f}% lower internal token cost vs {display_condition(args.baseline)})"
-            )
-            lines.append(
-                f"**{display_condition(condition_name)}**: {format_num(result['internal_tokens'])} avg internal tokens {delta_text}; "
-                f"compliance {format_num(result['compliance'])}%; repair turns {format_num(result['repair_turns'])}; "
-                f"final quality {format_num(result['final_quality'])}"
-            )
-            lines.append(f"Run token counts: `{result['internal_token_runs']}`")
-            lines.append("Internal sample:")
-            lines.append("```text")
-            lines.append(result["sample_internal"])
-            lines.append("```")
-            lines.append("Final sample:")
-            lines.append("```text")
-            lines.append(result["sample_final"])
-            lines.append("```\n")
-
-    lines.append("## Summary Table\n")
-    lines.append("| Case | Condition | Internal Tokens | Compliance | Repair Turns | Final Quality |")
-    lines.append("|---|---|---:|---:|---:|---:|")
-
-    totals = {
-        name: {"internal_tokens": 0.0, "compliance": 0.0, "repair_turns": 0.0, "final_quality": 0.0}
-        for name in conditions_to_run
-    }
-    for case in cases_to_run:
-        label = case["label"]
-        for condition_name in conditions_to_run:
-            result = results[condition_name][label]
-            lines.append(
-                f"| {label} | {display_condition(condition_name)} | {format_num(result['internal_tokens'])} | "
-                f"{format_num(result['compliance'])}% | {format_num(result['repair_turns'])} | {format_num(result['final_quality'])} |"
-            )
-            for metric in totals[condition_name]:
-                totals[condition_name][metric] += result[metric]
-
-    suite_len = len(cases_to_run) if cases_to_run else 1
-    for condition_name in conditions_to_run:
-        lines.append("| **TOTAL / AVG** | "
-                     f"{display_condition(condition_name)} | "
-                     f"**{format_num(totals[condition_name]['internal_tokens'])}** | "
-                     f"**{format_num(totals[condition_name]['compliance'] / suite_len)}%** | "
-                     f"**{format_num(totals[condition_name]['repair_turns'] / suite_len)}** | "
-                     f"**{format_num(totals[condition_name]['final_quality'] / suite_len)}** |")
-
-    lines.append("\n## Verdict\n")
-    baseline_total = totals[args.baseline]["internal_tokens"]
-    for condition_name in conditions_to_run:
-        if condition_name == args.baseline:
-            continue
-        delta = percent_delta(baseline_total, totals[condition_name]["internal_tokens"])
-        savings = baseline_total - totals[condition_name]["internal_tokens"]
-        lines.append(
-            f"`{display_condition(condition_name)}` reduced average internal coordination token cost by {delta:.1f}% vs `{display_condition(args.baseline)}`."
-        )
-        lines.append(
-            f"Average compliance: {format_num(totals[condition_name]['compliance'] / suite_len)}%; "
-            f"average repair turns: {format_num(totals[condition_name]['repair_turns'] / suite_len)}; "
-            f"average final quality: {format_num(totals[condition_name]['final_quality'] / suite_len)}."
-        )
-        lines.append(
-            f"Average savings per {suite_len}-case suite: {format_num(savings)} internal tokens."
-        )
-        lines.append(
-            f"Scale-up estimate: {format_num(scale_value(savings, 10))} tokens saved across 10 suites, "
-            f"{format_num(scale_value(savings, 100))} across 100 suites, "
-            f"{format_num(scale_value(savings, 1000))} across 1000 suites."
-        )
-        if count_mode == "openai_exact":
-            lines.append(
-                "These counts use the configured OpenAI tokenizer directly; apply model-specific pricing separately if needed."
-            )
-        else:
-            lines.append(
-                "These counts are heuristic estimates for comparison, not billable API usage."
-            )
-
-    output = "\n".join(lines)
-    with open(args.output, "w") as handle:
-        handle.write(output)
+    write_report(results, completed_conditions, cases_to_run, args, count_mode, args.output, partial=False)
 
     print(f"\nResults written to {args.output}")
+    suite_len = len(cases_to_run) if cases_to_run else 1
     for condition_name in conditions_to_run:
+        total_tokens = sum(results[condition_name][c["label"]]["internal_tokens"] for c in cases_to_run)
+        avg_compliance = sum(results[condition_name][c["label"]]["compliance"] for c in cases_to_run) / suite_len
+        avg_repair = sum(results[condition_name][c["label"]]["repair_turns"] for c in cases_to_run) / suite_len
+        avg_quality = sum(results[condition_name][c["label"]]["final_quality"] for c in cases_to_run) / suite_len
         print(
-            f"{condition_name}: total internal tokens {format_num(totals[condition_name]['internal_tokens'])}, "
-            f"avg compliance {format_num(totals[condition_name]['compliance'] / suite_len)}%, "
-            f"avg repair {format_num(totals[condition_name]['repair_turns'] / suite_len)}, "
-            f"avg final quality {format_num(totals[condition_name]['final_quality'] / suite_len)}"
+            f"{condition_name}: total internal tokens {format_num(total_tokens)}, "
+            f"avg compliance {format_num(avg_compliance)}%, "
+            f"avg repair {format_num(avg_repair)}, "
+            f"avg final quality {format_num(avg_quality)}"
         )
 
 
